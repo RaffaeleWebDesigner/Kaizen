@@ -10,7 +10,7 @@ function PlateRow({ plates }: { plates: number[] }) {
     <div className="flex flex-wrap gap-1.5 items-center">
       {plates.map((p, i) => (
         <span key={i} className="inline-grid place-items-center rounded-md bg-accent/15 border border-accent/40 text-accent font-bold text-sm"
-          style={{ width: 22 + p * 5, height: 28 + p * 4 }}>{fmtNum(p, 2)}</span>
+          style={{ minWidth: Math.max(34, 22 + p * 5), height: 28 + p * 4, padding: "0 4px" }}>{fmtNum(p, 2)}</span>
       ))}
     </div>
   );
