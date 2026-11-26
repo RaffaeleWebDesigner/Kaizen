@@ -23,18 +23,20 @@ npm run preview    # prova la build (service worker compreso) su http://localhos
 Per provarla dal telefono sulla stessa rete Wi-Fi: `npm run dev -- --host` e apri l'indirizzo mostrato.
 L'installazione e l'offline funzionano solo in HTTPS (o su localhost), quindi per l'uso vero serve il deploy.
 
-## Deploy
+## Deploy su GitHub Pages
 
-### GitHub Pages
-1. Il repository deve essere **pubblico** (Pages su repository privati richiede un piano GitHub a pagamento).
-2. Su GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Ogni push su `main` avvia il workflow `.github/workflows/deploy.yml`, che esegue i test, fa la build con il percorso giusto (`/Kaizen/`) e pubblica.
-4. L'app sarà su `https://<tuo-utente>.github.io/Kaizen/`.
+L'app va compilata prima di essere pubblicata: se Pages pubblica direttamente `main` vedi una pagina bianca.
+Per questo c'è il workflow `.github/workflows/deploy.yml`, che a ogni push su `main` esegue i test, compila l'app
+con il percorso giusto (`/Kaizen/`) e mette il risultato sul branch **`gh-pages`**.
 
-### Netlify (va bene anche con repository privato)
-1. Su Netlify: **Add new site → Import an existing project** e scegli il repository.
-2. Le impostazioni sono già in `netlify.toml` (comando `npm run build`, cartella `dist`). Conferma e pubblica.
-3. In alternativa, senza collegare GitHub: `npm run build` e trascina la cartella `dist` su app.netlify.com/drop.
+Impostazione una tantum, dopo il primo giro del workflow (quando il branch `gh-pages` esiste):
+1. Su GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a branch**.
+2. Branch: **`gh-pages`**, cartella **`/ (root)`**, poi **Save**.
+3. Dopo un minuto l'app è su `https://<tuo-utente>.github.io/Kaizen/`.
+
+Note:
+- Pages su repository privati richiede un piano GitHub a pagamento; con il piano gratuito il repository deve essere pubblico.
+- Per ripubblicare senza modifiche: **Actions → Build e pubblica su gh-pages → Run workflow**.
 
 ## Installazione sul telefono
 
