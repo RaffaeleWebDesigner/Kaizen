@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { background: #0a0a0a; color: #f4f4f4; min-height: 100%; }
+body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+* { -webkit-touch-callout: none; }
+input, textarea, select { font-size: 16px; color: #f4f4f4; }
+select option { background: #1d1d1d; }
+textarea { resize: vertical; }
+input[type='date'], input[type='time'] { color-scheme: dark; }
+
+@layer utilities {
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .pb-nav { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
