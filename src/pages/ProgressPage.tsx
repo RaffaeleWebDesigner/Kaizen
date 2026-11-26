@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, Header } from '../components/ui';
 import { useData } from '../lib/useData';
@@ -34,6 +35,11 @@ export default function ProgressPage() {
           <Card className="p-3 text-center"><div className="text-2xl font-bold text-accent">{totalTarget ? Math.round((Math.min(totalDone, totalTarget) / totalTarget) * 100) : 0}%</div><div className="text-[11px] text-muted">costanza totale</div></Card>
           <Card className="p-3 text-center"><div className="text-2xl font-bold">{streak(weeks)}</div><div className="text-[11px] text-muted">settimane di fila</div></Card>
           <Card className="p-3 text-center"><div className="text-2xl font-bold">{minima}</div><div className="text-[11px] text-muted">sedute minime</div></Card>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Link to="/saltate"><Card className="p-3"><div className="font-semibold">Sedute saltate</div><div className="text-xs text-muted">motivi e nemico n.1</div></Card></Link>
+          <Link to="/rank"><Card className="p-3"><div className="font-semibold">Rank</div><div className="text-xs text-muted">forza stimata</div></Card></Link>
         </div>
 
         <Card>

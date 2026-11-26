@@ -3,10 +3,15 @@ import { Card, Header } from '../components/ui';
 
 const ITEMS = [
   { to: '/modelli', icon: '📋', title: 'Modelli di seduta', text: 'A, B, C e Minima: esercizi, serie, fasce e carichi' },
+  { to: '/foto', icon: '📷', title: 'Foto dei progressi', text: 'Frontale e laterale ogni 4 settimane, confronto prima/dopo' },
+  { to: '/sfide', icon: '🔥', title: 'Sfide Goggins', text: 'Dure ma sicure, si sbloccano con la costanza' },
+  { to: '/successi', icon: '🫙', title: 'Barattolo dei successi', text: 'I tuoi successi, verificati con i dati' },
+  { to: '/rank', icon: '💎', title: 'Rank', text: 'Livello di forza stimato, da Rame a Super Lega' },
+  { to: '/promemoria', icon: '⏰', title: 'Promemoria', text: 'Giorni di palestra nel calendario del telefono (.ics)' },
   { to: '/calcio', icon: '⚽', title: 'Calcio e pianificazione', text: 'Partite, allenamenti e i 3 giorni migliori per la palestra' },
   { to: '/revisioni', icon: '🪞', title: 'Revisioni', text: 'Revisione settimanale e punto del mese' },
   { to: '/dati', icon: '💾', title: 'Dati e backup', text: 'Riepilogo per il coach, JSON, CSV' },
-  { to: '/impostazioni', icon: '⚙️', title: 'Impostazioni', text: 'Inizio progetto, altezza, obiettivo, lat machine' },
+  { to: '/impostazioni', icon: '⚙️', title: 'Impostazioni', text: 'Attrezzatura, lettera del giorno 1, soglie rank' },
 ];
 
 export default function MorePage() {

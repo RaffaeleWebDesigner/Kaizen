@@ -57,6 +57,8 @@ I dati vivono **solo** nel browser del telefono. Se disinstalli l'app o cancelli
 - **Esporta allenamenti (CSV)** crea un file con una riga per serie, separato da `;`, che si apre in Excel o Fogli.
 - **Copia riepilogo per il coach** copia un testo markdown con l'ultima seduta o la settimana, da incollare in chat.
 - Se l'ultimo backup ha più di 14 giorni, la schermata Oggi te lo ricorda.
+- Le **foto dei progressi** non entrano nel JSON (sarebbe enorme): hanno un backup ZIP separato in **Altro → Foto dei progressi**
+  (Esporta ZIP / Importa ZIP). L'importazione aggiunge le foto mancanti e salta quelle già presenti.
 
 ## Dati precaricati
 
@@ -73,6 +75,57 @@ e le partite del 20/11 e 27/11. Tutto si modifica dall'app.
   obiettivo. Dolore → nessuna progressione. Fermo da più di 7 giorni → circa -10% di carico.
 - **Calcio:** avviso se fai gambe il giorno della partita, il giorno prima, oppure martedì o giovedì in una settimana con partita il venerdì.
 
+- **Stallo:** 3 sedute di fila senza progressi (stesse ripetizioni e stesso carico, oppure RIR sotto 2) → seduta di scarico a circa -10%,
+  poi si riparte dal carico di prima. Se lo stallo si ripete dopo lo scarico, l'app suggerisce una variante. Dolore in 2 sedute di fila
+  sullo stesso esercizio → sostituiscilo e senti un medico o un fisioterapista. L'app suggerisce soltanto: la scheda la cambi tu.
+- **Mai a cedimento:** nessuna funzione spinge test di massimale. Sfide personalizzate con parole come "cedimento" o "massimale" vengono rifiutate.
+
+## Novità della versione 2
+
+L'aggiornamento non cancella niente: lo schema del database passa alla versione 2 aggiungendo solo tabelle nuove,
+e una migrazione completa i dati esistenti (categorie delle sedute saltate, bilancieri, esercizi per il rank).
+
+- **Foto dei progressi** (Altro → Foto): fronte e lato ogni 4 settimane, compresse a circa 1080 px. In fase di scatto vedi la foto
+  precedente in trasparenza per metterti nella stessa posizione. Confronto affiancato o con cursore. Backup ZIP separato.
+- **Promemoria** (Altro → Promemoria): scegli giorni, ora e durata e scarica un file `.ics` da importare nel calendario (vedi sotto).
+  In Oggi compare "Oggi è giorno di palestra"; dopo le 21:00, se non hai registrato niente, la Seduta minima diventa il pulsante principale.
+- **Sfide Goggins** (Altro → Sfide): si sbloccano dopo almeno 8 settimane dall'inizio e con costanza ≥ 80% nelle ultime 4 settimane.
+  Al massimo una ogni 3 settimane, mai nelle 48 ore prima di una partita né il giorno dopo. 4 sfide pronte più quelle tue.
+  Una sfida riuscita diventa una medaglia nel barattolo; una non riuscita si segna e basta, senza penalità.
+- **Calcolatore dischi**: in Impostazioni → Attrezzatura metti dischi e bilancieri. Durante la seduta, sugli esercizi col bilanciere,
+  il pulsante 🧮 dice quali dischi mettere per lato (o il carico più vicino sotto e sopra) e calcola il totale dai dischi.
+  La progressione usa i salti davvero possibili con i tuoi dischi.
+- **Analisi delle sedute saltate** (Progressi → Saltate): ogni seduta saltata ha una categoria (videogiochi, sonno, impegni, lavoro,
+  pigrizia, altro); grafico per mese e la frase "Il tuo nemico n.1".
+- **Lettera del giorno 1**: la scrivi al primo avvio. Puoi modificarla, ma l'originale resta. Ricompare a schermo intero dopo una seduta
+  saltata e quando sei fermo da più di 5 giorni (i giorni di malattia non contano).
+- **Barattolo dei successi** (Altro → Successi): ogni successo è ✅ Verificato, ⚠ Non confermato dai dati o 📝 Dichiarato.
+  Record e sfide riuscite entrano da soli. "Apri il barattolo" ne pesca uno a caso.
+- **Rank** (Progressi → Rank): per panca, trazioni, dip, curl EZ, stacco e military l'app stima il massimale dalla serie migliore
+  delle ultime 4 settimane (carico × (1 + (ripetizioni + RIR) / 30), solo serie da 1 a 10 ripetizioni) e lo divide per il peso corporeo.
+  Trazioni e dip contano peso corporeo più zavorra. 23 livelli da Rame a Super Lega, soglie modificabili in Impostazioni.
+  Il rank generale è la media dei rank. Non serve mai fare test di massimale: bastano le sedute normali.
+- Il **riepilogo per il coach** e il **punto del mese** includono stallo, dolore, analisi delle saltate e successi nuovi.
+
+## Promemoria nel calendario (.ics)
+
+L'app non manda notifiche push: crea un evento ricorrente nel calendario del telefono, con un avviso prima dell'allenamento.
+
+1. Apri **Altro → Promemoria**, scegli i giorni, l'ora, la durata e quanti minuti prima vuoi l'avviso.
+2. Tocca **Crea e apri il file calendario** (oppure **Scarica il file .ics**).
+
+**iPhone**
+- Se si apre il menu di condivisione, scegli **Calendario** e poi **Aggiungi tutti**.
+- Se il file viene scaricato, apri l'app **File → Download**, tocca `kaizen-palestra.ics` e poi **Aggiungi tutti**.
+- Controlla che il calendario scelto sia quello giusto e che in Impostazioni → Calendario le notifiche siano attive.
+
+**Android**
+- Apri il file scaricato dalla notifica o dall'app **File → Download** e scegli **Google Calendar**, poi **Importa** e il tuo account.
+- Se Google Calendar non apre il file: su un computer vai su calendar.google.com → ⚙️ Impostazioni → **Importa ed esporta**,
+  carica il file `.ics` e scegli il calendario.
+
+Se cambi giorni o orario, elimina dal calendario la serie vecchia ("Palestra – Metodo Kaizen") e importa il file nuovo.
+
 ## Struttura
 
 ```
@@ -82,6 +135,14 @@ src/lib/progression.ts  logica Kaizen
 src/lib/stats.ts      costanza, striscia, grafici, record
 src/lib/football.ts   partite, avvisi gambe, giorni consigliati
 src/lib/exportData.ts backup JSON, CSV, riepilogo coach
+src/migrations.ts     migrazione alla versione 2 (non cancella niente)
+src/lib/plates.ts     calcolatore dischi
+src/lib/stall.ts      stallo e dolore
+src/lib/rank.ts       massimale stimato e livelli
+src/lib/challenges.ts sblocco e date delle sfide
+src/lib/derived.ts    successi automatici, verifica, analisi saltate
+src/lib/photos.ts     compressione e ZIP delle foto
+src/lib/ics.ts        file calendario
 src/pages/            schermate
 scripts/make-icons.mjs  rigenera le icone PNG da public/favicon.svg
 ```

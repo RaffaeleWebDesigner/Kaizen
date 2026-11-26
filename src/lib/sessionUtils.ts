@@ -1,5 +1,7 @@
 import { db, type Exercise, type ExerciseLog, type Session, type SessionKind, type Target, type TemplateRow } from '../db';
 import { suggestTarget, type RowLike } from './progression';
+import { getSettings, type AppSettings } from './settings';
+import { plateTotals } from './plates';
 
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -49,6 +51,13 @@ export function makeLog(ex: Exercise, row: RowLike & { restSec: number }, target
   };
 }
 
+/** Peso del bilanciere preso dall'inventario, se l'esercizio è collegato. */
+export function withBar(ex: Exercise, settings: AppSettings): Exercise {
+  if (!ex.isBarbell || !ex.barId) return ex;
+  const bar = settings.bars.find((b) => b.id === ex.barId);
+  return bar && bar.weight !== null ? { ...ex, barWeight: bar.weight } : ex;
+}
+
 export async function sessionHistory(): Promise<Session[]> {
   const all = await db.sessions.toArray();
   return all.sort((a, b) => b.date.localeCompare(a.date) || (b.endedAt ?? 0) - (a.endedAt ?? 0));
@@ -59,8 +68,12 @@ export async function buildLog(ex: Exercise, date: string, row?: Partial<Templat
   const hist = history ?? (await sessionHistory());
   const prevLog = hist.find((s) => s.status === 'done' && s.exercises.some((e) => e.exerciseId === ex.id))?.exercises.find((e) => e.exerciseId === ex.id);
   const r = rowFor(ex, row ?? (prevLog ? { repMin: prevLog.repMin, repMax: prevLog.repMax, sets: prevLog.sets.length, startLoad: prevLog.sets[0]?.load ?? 0, restSec: prevLog.restSec } : undefined));
-  const target = suggestTarget(r, ex, ex.id!, hist.filter((s) => s.date <= date), date);
-  return makeLog(ex, r, target);
+  const settings = await getSettings();
+  const exx = withBar(ex, settings);
+  const target = suggestTarget(r, exx, exx.id!, hist.filter((s) => s.date <= date), date, {
+    plateTotals: exx.isBarbell && exx.unit === 'kg' ? plateTotals(settings.plates) : undefined,
+  });
+  return makeLog(exx, r, target);
 }
 
 /** Crea una nuova seduta (in corso o passata) dal modello. */

@@ -1,7 +1,8 @@
 import { db, TABLES, KIND_LABEL, type Session, type DayMark } from '../db';
 import { fmtDate, mondayOf, addDays, todayISO } from './dates';
 import { fmtLoad, fmtNum, totalLoad } from './units';
-import { setSetting } from './settings';
+import { getSettings, setSetting } from './settings';
+import { enemySentence, LABEL_TEXT, stallReport, verifySuccess } from './derived';
 
 export const BACKUP_VERSION = 1;
 
@@ -90,7 +91,14 @@ export async function coachSummary(mode: 'last' | 'week', ref = todayISO()): Pro
   if (mode === 'last') {
     const last = sessions[sessions.length - 1];
     if (!last) return 'Nessuna seduta registrata.';
-    return `## Ultima seduta\n\n${sessionMarkdown(last)}`;
+    const exById = new Map((await db.exercises.toArray()).map((e) => [e.id!, e]));
+    const rep = stallReport(sessions, exById, last.date);
+    const names = new Set(last.exercises.map((e) => e.name));
+    const extra = [
+      ...rep.stalled.filter((x) => names.has(x.name)).map((x) => `- In stallo: ${x.name}`),
+      ...rep.pain.filter((x) => names.has(x.name) && x.streak).map((x) => `- Dolore 2 sedute di fila: ${x.name}`),
+    ];
+    return `## Ultima seduta\n\n${sessionMarkdown(last)}${extra.length ? `\n\n${extra.join('\n')}` : ''}`;
   }
   const mon = mondayOf(ref);
   const sun = addDays(mon, 6);
@@ -108,6 +116,27 @@ export async function coachSummary(mode: 'last' | 'week', ref = todayISO()): Pro
   if (sick.length) {
     out.push('### Stop per malattia');
     for (const m of sick) out.push(`- ${fmtDate(m.date)}`);
+    out.push('');
+  }
+  // analisi saltate, stallo, dolore e successi
+  const allMarks = await db.dayMarks.toArray();
+  out.push('### Sedute saltate: analisi', `- ${enemySentence(allMarks, ref.slice(0, 7))}`, '');
+  const exById = new Map((await db.exercises.toArray()).map((e) => [e.id!, e]));
+  const rep = stallReport(sessions, exById, ref);
+  if (rep.stalled.length || rep.pain.length) {
+    out.push('### Stallo e dolore');
+    for (const x of rep.stalled) out.push(`- In stallo: ${x.name}${x.deloadDone ? ' (già fatto lo scarico)' : ''}`);
+    for (const x of rep.pain) out.push(`- Dolore: ${x.name}${x.streak ? ' (2 sedute di fila)' : ` (${fmtDate(x.date)})`}`);
+    out.push('');
+  }
+  const succ = (await db.successes.toArray()).filter((x) => x.date >= mon && x.date <= sun);
+  if (succ.length) {
+    const vd = { sessions, marks: allMarks, attempts: await db.challengeAttempts.toArray(), challenges: await db.challenges.toArray(), exById, settings: await getSettings() };
+    out.push('### Successi nuovi');
+    for (const x of succ) {
+      const v = verifySuccess(x, vd);
+      out.push(`- ${x.title}${x.description ? `: ${x.description}` : ''} · ${LABEL_TEXT[v.label]}${v.verdict ? ` (${v.verdict})` : ''}`);
+    }
     out.push('');
   }
   const review = await db.reviews.where('periodStart').equals(mon).filter((r) => r.type === 'weekly').first();

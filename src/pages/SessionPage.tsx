@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, Chips, Confirm, Field, Header, NumInput, Sheet, Stepper, inputCls, toast } from '../components/ui';
+import PlateCalc from '../components/PlateCalc';
+import { setSetting } from '../lib/settings';
+import { syncDerived } from '../lib/derived';
 import RestTimer, { primeAudio, type TimerState } from '../components/RestTimer';
 import { ExercisePicker } from './TemplateEdit';
 import { db, GROUP_LABEL, KIND_LABEL, type ExerciseLog, type Session } from '../db';
@@ -73,11 +76,17 @@ export default function SessionPage() {
     persist({ ...s, exercises: [...s.exercises, log] });
   };
 
-  const substitute = async (uid: string, exId: number) => {
+  const substitute = async (uid: string, exId: number, forPain = true) => {
     const ex = data.exById.get(exId)!;
     const log = await buildLog(ex, s.date, undefined, history);
     const idx = s.exercises.findIndex((e) => e.uid === uid);
-    const exercises = s.exercises.map((e) => (e.uid === uid ? { ...e, stopped: true, pain: true } : e));
+    const old = s.exercises[idx];
+    const untouched = forPain ? false : old.sets.every((x) => !x.done);
+    const exercises = untouched
+      ? s.exercises.filter((e) => e.uid !== uid)
+      : s.exercises.map((e) => (e.uid === uid ? { ...e, stopped: true, pain: forPain ? true : e.pain } : e));
+    if (untouched) exercises.splice(idx, 0, log);
+    else exercises.splice(idx + 1, 0, log);
     exercises.splice(idx + 1, 0, log);
     persist({ ...s, exercises });
     setPainFor(null);
@@ -125,6 +134,7 @@ export default function SessionPage() {
           <ExerciseCard
             key={log.uid}
             log={log}
+            data={data}
             history={history}
             sessionDate={s.date}
             onChange={(p) => updateLog(log.uid, p)}
@@ -132,6 +142,7 @@ export default function SessionPage() {
             onRest={() => startRest(log)}
             onSetDone={() => startRest(log)}
             onPain={() => setPainFor(log.uid)}
+            onSubstitute={(exId) => substitute(log.uid, exId, false)}
           />
         ))}
 
@@ -156,6 +167,7 @@ export default function SessionPage() {
           const wasDone = s.status === 'done';
           const next: Session = { ...s, ...patch, status: 'done', endedAt: s.endedAt ?? Date.now() };
           await db.sessions.put(next);
+          await syncDerived();
           setFinish(false);
           if (wasDone) { toast('Modifiche salvate'); nav(-1); } else nav(`/fatta/${s.id}`, { replace: true });
         }} />
@@ -172,11 +184,15 @@ function NotesBox({ value, onSave, placeholder }: { value: string; onSave: (v: s
   return <textarea className={`${inputCls} py-2 min-h-[72px]`} value={t} placeholder={placeholder} onChange={(e) => setT(e.target.value)} onBlur={() => t !== value && onSave(t)} />;
 }
 
-function ExerciseCard({ log, history, sessionDate, onChange, onRemove, onRest, onSetDone, onPain }: {
-  log: ExerciseLog; history: Session[]; sessionDate: string;
+function ExerciseCard({ log, data, history, sessionDate, onChange, onRemove, onRest, onSetDone, onPain, onSubstitute }: {
+  log: ExerciseLog; data: AppData; history: Session[]; sessionDate: string;
   onChange: (p: Partial<ExerciseLog>) => void; onRemove: () => void; onRest: () => void; onSetDone: () => void; onPain: () => void;
+  onSubstitute: (exId: number) => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [plates, setPlates] = useState(false);
+  const subs = (data.exById.get(log.exerciseId)?.substituteIds ?? []).map((id) => data.exById.get(id)).filter((x) => x && !x.archived);
+  const stalled = log.target?.kind === 'deload' || log.target?.advice === 'substitute';
   const prev = useMemo(() => lastLogOf(history.filter((h) => h.date <= sessionDate), log.exerciseId), [history, sessionDate, log.exerciseId]);
   const allDone = log.sets.length > 0 && log.sets.every((x) => x.done);
   const [open, setOpen] = useState(!allDone);
@@ -224,7 +240,16 @@ function ExerciseCard({ log, history, sessionDate, onChange, onRemove, onRest, o
               <div className="font-semibold">{t ? summary(Array.from({ length: t.sets }, () => ({ reps: t.reps, load: t.load, done: false })), log) : '—'}</div>
             </div>
           </div>
-          {t && <p className="text-sm text-muted mb-3">{t.message}</p>}
+          {stalled && <span className="inline-block text-xs font-bold uppercase tracking-wide bg-minima/20 text-minima rounded-full px-2 py-1 mb-2">In stallo</span>}
+          {t && <p className={`text-sm mb-3 ${t.advice ? 'text-minima' : 'text-muted'}`}>{t.message}</p>}
+          {t?.advice && subs.length > 0 && !log.sets.some((x) => x.done) && (
+            <div className="mb-3">
+              <div className="text-xs text-muted mb-1">Varianti fattibili con la tua attrezzatura (solo per oggi):</div>
+              <div className="flex flex-wrap gap-2">
+                {subs.map((x) => <Button key={x!.id} className="text-sm" onClick={() => onSubstitute(x!.id!)}>{x!.name}</Button>)}
+              </div>
+            </div>
+          )}
           {log.cues.length > 0 && (
             <ul className="text-sm mb-3 space-y-1">
               {log.cues.map((c, i) => <li key={i} className="flex gap-2"><span className="text-accent">›</span>{c}</li>)}
@@ -234,9 +259,20 @@ function ExerciseCard({ log, history, sessionDate, onChange, onRemove, onRest, o
           {log.isBarbell && (
             <div className="mb-3">
               <Field label={`Peso bilanciere (${log.unit}), si somma ai dischi`} hint={log.barWeight ? undefined : 'Inseriscilo una volta: viene salvato nell’esercizio.'}>
-                <NumInput value={log.barWeight} placeholder="da inserire" onChange={(v) => { onChange({ barWeight: v }); db.exercises.update(log.exerciseId, { barWeight: v }); }} />
+                <NumInput value={log.barWeight} placeholder="da inserire" onChange={(v) => {
+                  onChange({ barWeight: v });
+                  db.exercises.update(log.exerciseId, { barWeight: v });
+                  const barId = data.exById.get(log.exerciseId)?.barId;
+                  if (barId) setSetting('bars', data.settings.bars.map((b) => (b.id === barId ? { ...b, weight: v } : b)));
+                }} />
               </Field>
+              {log.unit === 'kg' && <Button className="w-full -mt-1" onClick={() => setPlates(true)}>🏋️ Calcolatore dischi</Button>}
             </div>
+          )}
+          {plates && (
+            <PlateCalc open onClose={() => setPlates(false)} settings={data.settings} barWeight={log.barWeight}
+              current={(log.sets.find((x) => !x.done) ?? log.sets[log.sets.length - 1])?.load ?? 0}
+              onUse={(v) => { onChange({ sets: log.sets.map((x) => (x.done ? x : { ...x, load: v })) }); toast('Carico inserito nelle serie da fare'); }} />
           )}
 
           <div className="space-y-2">

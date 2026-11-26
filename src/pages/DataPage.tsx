@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Card, Confirm, Header, Sheet, toast } from '../components/ui';
 import { useSettings, setSetting } from '../lib/settings';
 import { coachSummary, copyText, download, downloadBackup, importAll, sessionsCSV } from '../lib/exportData';
@@ -49,6 +50,7 @@ export default function DataPage() {
             if (f) setPending(await f.text());
             e.target.value = '';
           }} />
+          <p className="text-xs text-muted mt-3">Le foto dei progressi hanno un backup ZIP separato, in <Link to="/foto" className="text-accent">Foto dei progressi</Link>.</p>
           {settings.lastBackupAt && <button className="text-xs text-muted mt-3" onClick={() => setSetting('lastBackupAt', Date.now())}>Ho già salvato una copia altrove</button>}
         </Card>
       </div>

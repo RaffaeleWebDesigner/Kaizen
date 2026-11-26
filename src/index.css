@@ -16,3 +16,9 @@ input[type='date'], input[type='time'] { color-scheme: dark; }
   .pb-nav { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
   .tabular { font-variant-numeric: tabular-nums; }
 }
+
+@keyframes kz-pop { 0% { transform: scale(0.2) rotate(-30deg); opacity: 0; } 60% { transform: scale(1.15) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+@keyframes kz-spin { to { transform: rotate(360deg); } }
+.kz-pop { animation: kz-pop 0.9s cubic-bezier(.2,.9,.3,1.2) both; }
+.kz-spin { animation: kz-spin 12s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .kz-pop, .kz-spin { animation: none; } }

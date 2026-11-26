@@ -21,7 +21,22 @@ export interface Exercise {
   cues: string[]; // 1-2 indicazioni tecniche
   substituteIds: number[];
   archived?: boolean;
+  barId?: string | null; // bilanciere dell'inventario
+  rankKey?: RankKey | null; // esercizio che dà un rank
 }
+
+export type RankKey = 'panca' | 'squat' | 'stacco' | 'military' | 'trazioni' | 'dip';
+
+export type SkipCategory = 'videogiochi' | 'sonno' | 'impegni' | 'lavoro' | 'pigrizia' | 'altro';
+
+export const SKIP_CATEGORY_LABEL: Record<SkipCategory, string> = {
+  videogiochi: 'Videogiochi',
+  sonno: 'Sonno / stanchezza',
+  impegni: 'Impegni',
+  lavoro: 'Lavoro',
+  pigrizia: 'Pigrizia',
+  altro: 'Altro',
+};
 
 export interface TemplateRow {
   exerciseId: number;
@@ -50,7 +65,8 @@ export interface Target {
   reps: number;
   load: number;
   message: string;
-  kind: 'first' | 'reps' | 'load' | 'same' | 'pain' | 'restart' | 'top';
+  advice?: 'substitute' | 'doctor_substitute';
+  kind: 'first' | 'reps' | 'load' | 'same' | 'pain' | 'restart' | 'top' | 'deload' | 'after_deload';
 }
 
 export interface ExerciseLog {
@@ -99,6 +115,7 @@ export interface DayMark {
   type: DayMarkType;
   plannedKind?: SessionKind | null;
   reason?: string;
+  category?: SkipCategory;
 }
 
 export interface Match {
@@ -142,6 +159,70 @@ export interface Review {
   note?: string;
 }
 
+export interface Photo {
+  id?: number;
+  date: string;
+  pose: 'front' | 'side';
+  data: ArrayBuffer; // JPEG compresso, lato lungo ~1080px
+  mime: string;
+  width: number;
+  height: number;
+  note?: string;
+  createdAt: number;
+}
+
+export interface Challenge {
+  id?: number;
+  name: string;
+  description: string;
+  duration: 'day' | 'week';
+  builtin: boolean;
+  archived?: boolean;
+}
+
+export interface ChallengeAttempt {
+  id?: number;
+  challengeId: number;
+  date: string; // giorno, oppure lunedì per le sfide di una settimana
+  status: 'planned' | 'completed' | 'failed';
+  note?: string;
+  closedAt?: number;
+}
+
+export type ClaimType = 'record' | 'settimana' | 'sfida' | 'costanza';
+
+export interface Claim {
+  type: ClaimType;
+  exerciseId?: number;
+  load?: number; // carico totale nell'unità dell'esercizio
+  reps?: number;
+  weekStart?: string;
+  challengeId?: number;
+  weeks?: number;
+  pct?: number;
+}
+
+export interface Success {
+  id?: number;
+  date: string;
+  title: string;
+  description?: string;
+  category: 'palestra' | 'calcio' | 'vita';
+  claim?: Claim | null;
+  source: 'manual' | 'pr' | 'challenge' | 'rank';
+  autoKey?: string;
+  createdAt: number;
+}
+
+export interface RankSnap {
+  id?: number;
+  date: string;
+  key: RankKey | 'overall';
+  level: number; // 1-23
+  index: number; // indice di forza (0 per overall)
+  bw?: number | null; // peso corporeo usato
+}
+
 export interface Setting {
   key: string;
   value: unknown;
@@ -156,6 +237,11 @@ export class KaizenDB extends Dexie {
   matches!: Table<Match, number>;
   measurements!: Table<Measurement, number>;
   reviews!: Table<Review, number>;
+  photos!: Table<Photo, number>;
+  challenges!: Table<Challenge, number>;
+  challengeAttempts!: Table<ChallengeAttempt, number>;
+  successes!: Table<Success, number>;
+  rankHistory!: Table<RankSnap, number>;
 
   constructor() {
     super('kaizen');
@@ -168,6 +254,15 @@ export class KaizenDB extends Dexie {
       matches: '++id, date',
       measurements: '++id, date',
       reviews: '++id, type, periodStart',
+    });
+    // v2: solo tabelle nuove. Le tabelle della v1 restano intatte; i valori predefiniti
+    // mancanti vengono aggiunti da ensureV2() (src/migrations.ts) senza toccare i dati esistenti.
+    this.version(2).stores({
+      photos: '++id, date, pose',
+      challenges: '++id',
+      challengeAttempts: '++id, challengeId, date, status',
+      successes: '++id, date, autoKey, source',
+      rankHistory: '++id, date, key',
     });
   }
 }
@@ -183,7 +278,11 @@ export const TABLES = [
   'matches',
   'measurements',
   'reviews',
-] as const;
+  'challenges',
+  'challengeAttempts',
+  'successes',
+  'rankHistory',
+] as const; // le foto vanno nel backup ZIP separato
 
 export const KIND_LABEL: Record<SessionKind, string> = {
   A: 'Seduta A',

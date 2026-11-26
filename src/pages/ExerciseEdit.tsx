@@ -4,6 +4,7 @@ import { Button, Card, Chips, Field, Header, NumInput, Toggle, inputCls, toast }
 import { db, GROUP_LABEL, type Exercise, type MuscleGroup } from '../db';
 import { useData } from '../lib/useData';
 import { convert } from '../lib/units';
+import { RANK_EXERCISE_LABEL } from '../lib/rank';
 
 const EMPTY: Exercise = {
   name: '', group: 'spinta', type: 'reps', unit: 'kg', bodyweight: false, isBarbell: false, barWeight: null,
@@ -70,6 +71,17 @@ export default function ExerciseEdit() {
               <Toggle label="Corpo libero (il carico è zavorra)" checked={ex.bodyweight} onChange={(v) => set({ bodyweight: v })} />
               <Toggle label="Con bilanciere" checked={ex.isBarbell} onChange={(v) => set({ isBarbell: v })} />
               {ex.isBarbell && (
+                <Field label="Quale bilanciere?" hint="Il peso arriva dall’inventario (Impostazioni → Attrezzatura).">
+                  <select className={inputCls} value={ex.barId ?? ''} onChange={(e) => {
+                    const bar = data.settings.bars.find((b) => b.id === e.target.value);
+                    set({ barId: e.target.value || null, barWeight: bar?.weight ?? ex.barWeight });
+                  }}>
+                    <option value="">Nessuno / peso a mano</option>
+                    {data.settings.bars.map((b) => <option key={b.id} value={b.id}>{b.name}{b.weight !== null ? ` (${b.weight} kg)` : ''}</option>)}
+                  </select>
+                </Field>
+              )}
+              {ex.isBarbell && !ex.barId && (
                 <Field label={`Peso del bilanciere (${ex.unit})`} hint="Si somma ai dischi. Lascia vuoto se non lo sai ancora.">
                   <NumInput value={ex.barWeight} onChange={(v) => set({ barWeight: v })} placeholder="es. 10" />
                 </Field>
@@ -92,6 +104,12 @@ export default function ExerciseEdit() {
               <NumInput value={ex.increment} onChange={(v) => set({ increment: v ?? 5 })} />
             </Field>
           )}
+          <Field label="Rank" hint="Solo per gli esercizi base col bilanciere, trazioni e dip. Varianti e manubri non danno rank.">
+            <select className={inputCls} value={ex.rankKey ?? ''} onChange={(e) => set({ rankKey: (e.target.value || null) as Exercise['rankKey'] })}>
+              <option value="">Nessun rank</option>
+              {Object.entries(RANK_EXERCISE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </Field>
           <Field label="Recupero predefinito (secondi)">
             <NumInput value={ex.restSec} onChange={(v) => set({ restSec: v ?? 90 })} />
           </Field>

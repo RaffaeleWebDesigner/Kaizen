@@ -16,6 +16,17 @@ import ReviewsPage from './pages/ReviewsPage';
 import MonthlyReview from './pages/MonthlyReview';
 import DataPage from './pages/DataPage';
 import SettingsPage from './pages/SettingsPage';
+import EquipmentPage from './pages/EquipmentPage';
+import PhotosPage from './pages/PhotosPage';
+import PhotoCapture from './pages/PhotoCapture';
+import PhotoCompare from './pages/PhotoCompare';
+import RemindersPage from './pages/RemindersPage';
+import ChallengesPage from './pages/ChallengesPage';
+import LetterPage from './pages/LetterPage';
+import SkipAnalysisPage from './pages/SkipAnalysisPage';
+import SuccessesPage from './pages/SuccessesPage';
+import RankPage from './pages/RankPage';
+import NoticeHost from './components/NoticeHost';
 
 const TABS = [
   { to: '/', label: 'Oggi', icon: '●' },
@@ -27,7 +38,7 @@ const TABS = [
 
 function BottomNav() {
   const loc = useLocation();
-  if (loc.pathname.startsWith('/seduta/')) return null;
+  if (loc.pathname.startsWith('/seduta/') || loc.pathname.startsWith('/foto/scatta')) return null;
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 bg-bg/95 backdrop-blur border-t border-line pb-[env(safe-area-inset-bottom)]">
       <div className="max-w-lg mx-auto grid grid-cols-5">
@@ -68,10 +79,21 @@ export default function App() {
           <Route path="/revisioni/mese/:n" element={<MonthlyReview />} />
           <Route path="/dati" element={<DataPage />} />
           <Route path="/impostazioni" element={<SettingsPage />} />
+          <Route path="/attrezzatura" element={<EquipmentPage />} />
+          <Route path="/foto" element={<PhotosPage />} />
+          <Route path="/foto/scatta/:pose" element={<PhotoCapture />} />
+          <Route path="/foto/confronta" element={<PhotoCompare />} />
+          <Route path="/promemoria" element={<RemindersPage />} />
+          <Route path="/sfide" element={<ChallengesPage />} />
+          <Route path="/lettera" element={<LetterPage />} />
+          <Route path="/saltate" element={<SkipAnalysisPage />} />
+          <Route path="/successi" element={<SuccessesPage />} />
+          <Route path="/rank" element={<RankPage />} />
         </Routes>
       </div>
       <BottomNav />
       <ToastHost />
+      <NoticeHost />
     </HashRouter>
   );
 }

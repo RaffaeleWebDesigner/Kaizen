@@ -9,6 +9,7 @@ import { exerciseHistory, weekStats } from '../lib/stats';
 import { fmtNum } from '../lib/units';
 import { METRICS } from '../lib/metrics';
 import { setSetting, type AppSettings } from '../lib/settings';
+import { stallReport } from '../lib/derived';
 
 export const BLOCK_DAYS = 28;
 
@@ -76,6 +77,8 @@ export default function MonthlyReview() {
     return { id, name: data.exById.get(id)?.name ?? '', type: data.exById.get(id)?.type, a: maxIn(prev), b: maxIn(cur) };
   }).filter((x) => x.b !== null || x.a !== null);
 
+  const report = stallReport(data.sessions, data.exById, cur.to < todayISO() ? cur.to : todayISO());
+
   return (
     <div className="pb-nav">
       <Header title={`Punto del mese ${n}`} back="/revisioni" />
@@ -107,6 +110,17 @@ export default function MonthlyReview() {
               <span className="tabular text-right">{l.a !== null ? (l.type === 'time' ? `${l.a}"` : `${fmtNum(l.a)} kg`) : '—'} → {l.b !== null ? (l.type === 'time' ? `${l.b}"` : `${fmtNum(l.b)} kg`) : '—'}</span>
             </div>
           ))}
+        </Card>
+        <Card>
+          <h2 className="font-bold mb-1">In stallo</h2>
+          {report.stalled.length === 0 ? <p className="text-sm text-muted">Nessun esercizio in stallo.</p> : report.stalled.map((x) => (
+            <div key={x.name} className="text-sm flex justify-between gap-2"><span>{x.name}</span><span className="text-minima">{x.deloadDone ? 'valuta una variante' : 'scarico -10%'}</span></div>
+          ))}
+          <h2 className="font-bold mb-1 mt-3">Dolore segnalato (ultime 4 settimane)</h2>
+          {report.pain.length === 0 ? <p className="text-sm text-muted">Nessuno.</p> : report.pain.map((x) => (
+            <div key={x.name} className="text-sm flex justify-between gap-2"><span>{x.name}</span><span className="text-danger">{x.streak ? '2 sedute di fila: sostituisci e senti un medico o un fisioterapista' : `ultima volta ${fmtDate(x.date)}`}</span></div>
+          ))}
+          <p className="text-xs text-muted mt-2">L’app suggerisce soltanto: la scheda la cambi tu nei modelli.</p>
         </Card>
         <Field label="Una nota per il mese prossimo">
           <textarea className={`${inputCls} py-2 min-h-[80px]`} defaultValue={saved?.note ?? ''} onChange={(e) => setNote(e.target.value)} />

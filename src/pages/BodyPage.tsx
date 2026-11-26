@@ -7,6 +7,7 @@ import { useSettings } from '../lib/settings';
 import { fmtDate, fmtDateFull, todayISO } from '../lib/dates';
 import { fmtNum } from '../lib/units';
 import { METRICS, bmiOf, type MetricKey } from '../lib/metrics';
+import { syncDerived } from '../lib/derived';
 
 export const chartTooltip = {
   contentStyle: { background: '#1d1d1d', border: '1px solid #2a2a2a', borderRadius: 12, color: '#f4f4f4' },
@@ -104,6 +105,7 @@ function MeasureSheet({ m, heightCm, onClose }: { m: Measurement; heightCm: numb
     if (out.weight && !out.bmi) out.bmi = bmiOf(out.weight, heightCm);
     if (out.id) await db.measurements.put(out);
     else await db.measurements.add(out);
+    syncDerived();
     toast('Misure salvate');
     onClose();
   };
