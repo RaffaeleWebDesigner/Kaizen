@@ -178,3 +178,53 @@ export async function ensureV3(): Promise<void> {
     await db.settings.put({ key: 'v3done', value: true });
   });
 }
+
+// ---------- stazioni della multifunzione (27/11/2026) ----------
+
+type MachineSeed = Omit<Exercise, 'id' | 'substituteIds' | 'unit' | 'stackStep' | 'increment'> & { subs: string[] };
+const mBase = { type: 'reps' as const, bodyweight: false, isBarbell: false, barWeight: null, perHand: false, barId: null, rankKey: null };
+
+export const MACHINE_EXERCISES: MachineSeed[] = [
+  { ...mBase, name: 'Pulley basso', group: 'tirata', restSec: 90, subs: ['Rematore con manubrio', 'Lat machine'],
+    cues: ['Busto fermo e dritto, tira i gomiti indietro', 'Scapole insieme alla fine, ritorno controllato'] },
+  { ...mBase, name: 'Curl al cavo basso', group: 'tirata', restSec: 60, subs: ['Curl con bilanciere EZ'],
+    cues: ['Gomiti fermi ai fianchi', 'Sali e scendi lento, niente slancio'] },
+  { ...mBase, name: 'Pushdown al cavo alto', group: 'spinta', restSec: 60, subs: ['Dip alle parallele'],
+    cues: ['Gomiti incollati ai fianchi', 'Estendi del tutto, risali piano'] },
+  { ...mBase, name: 'Face pull al cavo alto', group: 'tirata', restSec: 60, subs: ['Rematore con manubrio'],
+    cues: ['Tira verso la fronte aprendo i gomiti', 'Carico leggero, spalle basse'] },
+  { ...mBase, name: 'Chest press', group: 'spinta', restSec: 90, subs: ['Panca piana con bilanciere', 'Piegamenti'],
+    cues: ['Scapole strette contro lo schienale', 'Spingi senza bloccare i gomiti'] },
+  { ...mBase, name: 'Croci alla macchina', group: 'spinta', restSec: 60, subs: ['Panca inclinata con manubri'],
+    cues: ['Gomiti leggermente piegati e fermi', 'Chiudi stringendo il petto, apri senza tirare la spalla'] },
+  { ...mBase, name: 'Leg extension', group: 'gambe', restSec: 75, subs: ['Goblet squat', 'Split squat con manubri'],
+    cues: ['Schiena appoggiata, ginocchio in linea col perno della macchina', 'Estendi senza scatti, fermati un attimo in alto e scendi lento'] },
+  { ...mBase, name: 'Leg curl a una gamba', group: 'gambe', perHand: true, restSec: 75, subs: ['Stacco rumeno con manubri'],
+    cues: ['Bacino fermo, una gamba alla volta', 'Piega lento e torna giù in 2-3 secondi'] },
+];
+
+/** Aggiunge le stazioni della multifunzione al catalogo (non ai modelli). Gira una volta sola. */
+export async function ensureMachines(): Promise<void> {
+  if (await db.settings.get('machinesAdded')) return;
+  await db.transaction('rw', [db.settings, db.exercises], async () => {
+    if (await db.settings.get('machinesAdded')) return;
+    const lb = ((await db.settings.get('lbPerBlock'))?.value as number | undefined) ?? 15;
+    const all = await db.exercises.toArray();
+    const byName = (n: string) => all.find((e) => e.name === n);
+    for (const m of MACHINE_EXERCISES) {
+      if (byName(m.name)) continue;
+      const { subs, ...rest } = m;
+      const subIds = subs.map((n) => byName(n)?.id).filter((x): x is number => typeof x === 'number');
+      const id = await db.exercises.add({ ...rest, unit: 'lb', stackStep: lb, increment: lb, substituteIds: subIds });
+      // anche gli esercizi esistenti possono proporre la macchina come variante
+      for (const sid of subIds) {
+        const ex = all.find((e) => e.id === sid)!;
+        if (!ex.substituteIds.includes(id)) {
+          ex.substituteIds = [...ex.substituteIds, id];
+          await db.exercises.update(sid, { substituteIds: ex.substituteIds });
+        }
+      }
+    }
+    await db.settings.put({ key: 'machinesAdded', value: true });
+  });
+}
