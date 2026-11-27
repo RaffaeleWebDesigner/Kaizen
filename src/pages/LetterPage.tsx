@@ -1,3 +1,4 @@
+import { addLetterSuccess } from '../migrations';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, Header, inputCls, toast } from '../components/ui';
@@ -25,7 +26,10 @@ export default function LetterPage() {
   const save = async () => {
     if (!text.trim()) return toast('Scrivi almeno qualche riga');
     const l: Letter = { text: text.trim(), at: Date.now() };
-    if (!s.letterOriginal) await setSetting('letterOriginal', l);
+    if (!s.letterOriginal) {
+      await setSetting('letterOriginal', l);
+      await addLetterSuccess(l.at);
+    }
     await setSetting('letterCurrent', l);
     await setSetting('letterPrompted', true);
     toast(s.letterOriginal ? 'Lettera aggiornata. L’originale resta salvata.' : 'Lettera salvata');

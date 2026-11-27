@@ -20,7 +20,7 @@ export interface Letter {
 
 export interface Notice {
   id: string;
-  kind: 'promotion' | 'demotion';
+  kind: 'promotion' | 'demotion' | 'goal';
   title: string;
   text: string;
   level: number;

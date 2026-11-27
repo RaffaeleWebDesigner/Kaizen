@@ -107,6 +107,18 @@ e una migrazione completa i dati esistenti (categorie delle sedute saltate, bila
   Il rank generale è la media dei rank. Non serve mai fare test di massimale: bastano le sedute normali.
 - Il **riepilogo per il coach** e il **punto del mese** includono stallo, dolore, analisi delle saltate e successi nuovi.
 
+## Novità della versione 3
+
+Anche qui il database passa alla versione 3 aggiungendo solo la tabella degli obiettivi: niente viene cancellato.
+
+- **Obiettivi** (Altro → Obiettivi): al massimo 3 attivi. Costanza (settimane di fila), Esercizio (ripetizioni e carico),
+  Rank (livello successivo), Corpo (peso o vita, con ritmo massimo di 0,5 kg a settimana) e Abitudine (settimane senza sedute saltate).
+  Ogni obiettivo si divide in tappe piccole che seguono la progressione dell'app; in Oggi vedi solo la prossima tappa.
+  Le tappe e i traguardi entrano da soli nel barattolo come ✅ Verificato. Nessuna scadenza, solo un ritmo stimato.
+- **6 sfide nuove**: Il nemico n.1, Ritorno immediato, Telefono in un'altra stanza, Cinque minuti di plank, Cento piegamenti,
+  Due settimane perfette (dalla settimana 12).
+- **Primi successi** nel barattolo, inseriti una volta sola all'aggiornamento e verificati sul registro quando possibile.
+
 ## Promemoria nel calendario (.ics)
 
 L'app non manda notifiche push: crea un evento ricorrente nel calendario del telefono, con un avviso prima dell'allenamento.
@@ -143,6 +155,7 @@ src/lib/challenges.ts sblocco e date delle sfide
 src/lib/derived.ts    successi automatici, verifica, analisi saltate
 src/lib/photos.ts     compressione e ZIP delle foto
 src/lib/ics.ts        file calendario
+src/lib/goals.ts      obiettivi a tappe
 src/pages/            schermate
 scripts/make-icons.mjs  rigenera le icone PNG da public/favicon.svg
 ```

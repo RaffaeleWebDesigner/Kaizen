@@ -4,6 +4,7 @@ import { Card, Header } from '../components/ui';
 const ITEMS = [
   { to: '/modelli', icon: '📋', title: 'Modelli di seduta', text: 'A, B, C e Minima: esercizi, serie, fasce e carichi' },
   { to: '/foto', icon: '📷', title: 'Foto dei progressi', text: 'Frontale e laterale ogni 4 settimane, confronto prima/dopo' },
+  { to: '/obiettivi', icon: '🎯', title: 'Obiettivi', text: 'Traguardi a tappe piccole, senza scadenze' },
   { to: '/sfide', icon: '🔥', title: 'Sfide Goggins', text: 'Dure ma sicure, si sbloccano con la costanza' },
   { to: '/successi', icon: '🫙', title: 'Barattolo dei successi', text: 'I tuoi successi, verificati con i dati' },
   { to: '/rank', icon: '💎', title: 'Rank', text: 'Livello di forza stimato, da Rame a Super Lega' },

@@ -178,6 +178,8 @@ export interface Challenge {
   duration: 'day' | 'week';
   builtin: boolean;
   archived?: boolean;
+  minWeeks?: number; // settimane di progetto necessarie oltre allo sblocco
+  spanWeeks?: number; // durata in settimane per le sfide 'week' (default 1)
 }
 
 export interface ChallengeAttempt {
@@ -189,7 +191,7 @@ export interface ChallengeAttempt {
   closedAt?: number;
 }
 
-export type ClaimType = 'record' | 'settimana' | 'sfida' | 'costanza';
+export type ClaimType = 'record' | 'settimana' | 'sfida' | 'costanza' | 'seduta' | 'misura' | 'ripresa' | 'obiettivo';
 
 export interface Claim {
   type: ClaimType;
@@ -200,6 +202,8 @@ export interface Claim {
   challengeId?: number;
   weeks?: number;
   pct?: number;
+  date?: string; // seduta/misura: quel giorno; ripresa: giorno di malattia
+  goalId?: number;
 }
 
 export interface Success {
@@ -209,9 +213,31 @@ export interface Success {
   description?: string;
   category: 'palestra' | 'calcio' | 'vita';
   claim?: Claim | null;
-  source: 'manual' | 'pr' | 'challenge' | 'rank';
+  source: 'manual' | 'pr' | 'challenge' | 'rank' | 'goal';
   autoKey?: string;
   createdAt: number;
+}
+
+export type GoalKind = 'streak' | 'exercise' | 'rank' | 'body' | 'habit';
+
+export interface Goal {
+  id?: number;
+  kind: GoalKind;
+  title: string;
+  status: 'active' | 'done' | 'archived';
+  createdAt: number;
+  createdOn: string; // data di creazione
+  doneOn?: string;
+  /** streak: settimane; habit: settimane senza sedute saltate; rank: livello; body: valore; exercise: carico totale */
+  target: number;
+  /** exercise: ripetizioni da raggiungere a quel carico */
+  targetReps?: number;
+  exerciseId?: number;
+  rankKey?: RankKey;
+  metric?: 'weight' | 'waist';
+  /** body: valore di partenza */
+  baseline?: number;
+  note?: string;
 }
 
 export interface RankSnap {
@@ -242,6 +268,7 @@ export class KaizenDB extends Dexie {
   challengeAttempts!: Table<ChallengeAttempt, number>;
   successes!: Table<Success, number>;
   rankHistory!: Table<RankSnap, number>;
+  goals!: Table<Goal, number>;
 
   constructor() {
     super('kaizen');
@@ -264,6 +291,10 @@ export class KaizenDB extends Dexie {
       successes: '++id, date, autoKey, source',
       rankHistory: '++id, date, key',
     });
+    // v3: solo una tabella nuova, nessuna tabella esistente viene toccata
+    this.version(3).stores({
+      goals: '++id, status, kind',
+    });
   }
 }
 
@@ -282,6 +313,7 @@ export const TABLES = [
   'challengeAttempts',
   'successes',
   'rankHistory',
+  'goals',
 ] as const; // le foto vanno nel backup ZIP separato
 
 export const KIND_LABEL: Record<SessionKind, string> = {

@@ -63,11 +63,14 @@ export default function ChallengesPage() {
           <Card key={c.id}>
             <div className="flex justify-between gap-2">
               <div className="font-semibold">{c.name}</div>
-              <span className="text-xs text-muted">{c.duration === 'week' ? '1 settimana' : '1 giorno'}</span>
+              <span className="text-xs text-muted shrink-0">{c.duration === 'week' ? `${c.spanWeeks ?? 1} ${(c.spanWeeks ?? 1) > 1 ? 'settimane' : 'settimana'}` : '1 giorno'}</span>
             </div>
             <p className="text-sm text-muted mt-1">{c.description}</p>
             <div className="grid grid-cols-2 gap-2 mt-2">
-              <Button disabled={!u.unlocked} onClick={() => setPlan(c)}>{u.unlocked ? 'Programma' : '🔒 Bloccata'}</Button>
+              {(() => {
+                const early = !!c.minWeeks && u.weeksDone < c.minWeeks;
+                return <Button disabled={!u.unlocked || early} onClick={() => setPlan(c)}>{!u.unlocked ? '🔒 Bloccata' : early ? `🔒 Dalla settimana ${c.minWeeks}` : 'Programma'}</Button>;
+              })()}
               {!c.builtin && <Button variant="ghost" onClick={() => db.challenges.update(c.id!, { archived: true })}>Archivia</Button>}
             </div>
           </Card>

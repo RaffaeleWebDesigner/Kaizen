@@ -11,8 +11,9 @@ const CAT_LABEL: Record<Success['category'], string> = { palestra: '🏋️ Pale
 export function useVerifyData(data: AppData | undefined): VerifyData | null {
   const attempts = useLiveQuery(() => db.challengeAttempts.toArray(), []);
   const challenges = useLiveQuery(() => db.challenges.toArray(), []);
-  if (!data || !attempts || !challenges) return null;
-  return { sessions: data.sessions, marks: data.marks, attempts, challenges, exById: data.exById, settings: data.settings };
+  const measures = useLiveQuery(() => db.measurements.toArray(), []);
+  if (!data || !attempts || !challenges || !measures) return null;
+  return { sessions: data.sessions, marks: data.marks, attempts, challenges, exById: data.exById, settings: data.settings, measures };
 }
 
 export function SuccessCard({ s, vd, onClick }: { s: Success; vd: VerifyData; onClick?: () => void }) {

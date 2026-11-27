@@ -25,6 +25,7 @@ import ChallengesPage from './pages/ChallengesPage';
 import LetterPage from './pages/LetterPage';
 import SkipAnalysisPage from './pages/SkipAnalysisPage';
 import SuccessesPage from './pages/SuccessesPage';
+import GoalsPage from './pages/GoalsPage';
 import RankPage from './pages/RankPage';
 import NoticeHost from './components/NoticeHost';
 
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/lettera" element={<LetterPage />} />
           <Route path="/saltate" element={<SkipAnalysisPage />} />
           <Route path="/successi" element={<SuccessesPage />} />
+          <Route path="/obiettivi" element={<GoalsPage />} />
           <Route path="/rank" element={<RankPage />} />
         </Routes>
       </div>

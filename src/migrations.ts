@@ -1,4 +1,5 @@
-import { db, type Exercise, type SkipCategory } from './db';
+import { db, type Challenge, type Exercise, type SkipCategory, type Success } from './db';
+import { toISO, todayISO } from './lib/dates';
 
 /** Classifica un motivo scritto a mano in una categoria. */
 export function guessCategory(reason: string | undefined): SkipCategory {
@@ -88,5 +89,92 @@ export async function ensureV2(): Promise<void> {
     }
 
     await db.settings.put({ key: 'v2done', value: true });
+  });
+}
+
+// ---------- v3: obiettivi, sfide nuove, primi successi ----------
+
+export const V3_CHALLENGES: Omit<Challenge, 'id' | 'builtin'>[] = [
+  {
+    name: 'Il nemico n.1',
+    description: 'Per una settimana, nei giorni di palestra niente videogiochi finché la seduta non è fatta. Prima il bilanciere, poi la console.',
+    duration: 'week',
+  },
+  {
+    name: 'Ritorno immediato',
+    description: 'Il giorno dopo una seduta saltata fai almeno la seduta minima. Non si lasciano due giorni di fila al nemico.',
+    duration: 'day',
+  },
+  {
+    name: 'Telefono in un’altra stanza',
+    description: 'La seduta intera senza telefono: recuperi a orologio, niente notifiche, solo tu e i pesi. Annota tutto alla fine.',
+    duration: 'day',
+  },
+  {
+    name: 'Cinque minuti di plank',
+    description: '300 secondi totali di plank in una seduta, in serie da 45-60 secondi. Ti fermi prima che la schiena ceda e recuperi quanto serve.',
+    duration: 'day',
+  },
+  {
+    name: 'Cento piegamenti',
+    description: '100 piegamenti in una seduta, divisi in quante serie servono. Ogni serie si chiude con 2 ripetizioni di margine.',
+    duration: 'day',
+  },
+  {
+    name: 'Due settimane perfette',
+    description: 'Due Settimane perfette di fila: tutte le sedute previste e tutti gli impegni di calcio, nessuna seduta saltata. Disponibile dopo 12 settimane di progetto.',
+    duration: 'week',
+    spanWeeks: 2,
+    minWeeks: 12,
+  },
+];
+
+async function addOnce(s: Omit<Success, 'id' | 'createdAt'>) {
+  if (s.autoKey && (await db.successes.where('autoKey').equals(s.autoKey).count())) return;
+  await db.successes.add({ ...s, createdAt: Date.now() });
+}
+
+/** Successo per la lettera del giorno 1 (una volta sola). */
+export async function addLetterSuccess(at: number) {
+  await addOnce({ date: toISO(new Date(at)), title: 'Lettera del giorno 1 scritta', description: 'Un messaggio al me di domani, per i giorni no.', category: 'vita', source: 'manual', autoKey: 'starter:letter' });
+}
+
+/**
+ * Aggiornamento alla v3: aggiunge le sfide nuove e i primi successi.
+ * Non tocca sedute, misure o altri dati. Gira una volta sola (flag v3done).
+ */
+export async function ensureV3(): Promise<void> {
+  if (await db.settings.get('v3done')) return;
+  await db.transaction('rw', [db.settings, db.challenges, db.successes, db.sessions, db.measurements, db.dayMarks], async () => {
+    if (await db.settings.get('v3done')) return;
+
+    const existing = await db.challenges.toArray();
+    for (const c of V3_CHALLENGES) {
+      if (!existing.some((x) => x.name === c.name)) await db.challenges.add({ ...c, builtin: true });
+    }
+
+    const done = (await db.sessions.toArray()).filter((s) => s.status === 'done').sort((a, b) => a.date.localeCompare(b.date));
+    const first = done[0];
+    if (first) {
+      await addOnce({ date: first.date, title: 'Prima seduta del progetto', description: 'Il primo passo del Metodo Kaizen.', category: 'palestra', source: 'manual', autoKey: 'starter:first-session', claim: { type: 'seduta', date: first.date } });
+    }
+    const sick = (await db.dayMarks.where('type').equals('sick').toArray()).map((m) => m.date).sort();
+    if (sick.length) {
+      const sickDay = sick[0];
+      const back = done.find((s) => s.date > sickDay);
+      await addOnce({
+        date: back?.date ?? todayISO(), title: 'Ripartito dopo la malattia', description: back ? 'Fermo per malattia, poi di nuovo in palestra.' : undefined,
+        category: 'palestra', source: 'manual', autoKey: 'starter:back-after-sick', claim: { type: 'ripresa', date: sickDay },
+      });
+    }
+    const m = (await db.measurements.toArray()).sort((a, b) => a.date.localeCompare(b.date))[0];
+    if (m) {
+      await addOnce({ date: m.date, title: 'Prima misurazione completa', description: 'Il punto di partenza: da qui si guarda la direzione.', category: 'vita', source: 'manual', autoKey: 'starter:first-measure', claim: { type: 'misura', date: m.date } });
+    }
+    const letter = (await db.settings.get('letterOriginal'))?.value as { at: number } | undefined;
+    if (letter?.at) await addLetterSuccess(letter.at);
+    await addOnce({ date: todayISO(), title: 'Mi sono costruito un’app tutta mia per allenarmi', category: 'vita', source: 'manual', autoKey: 'starter:app' });
+
+    await db.settings.put({ key: 'v3done', value: true });
   });
 }

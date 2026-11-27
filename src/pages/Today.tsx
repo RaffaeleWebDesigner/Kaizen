@@ -13,6 +13,7 @@ import { dueMonthly } from './MonthlyReview';
 import { photoDue } from '../lib/photos';
 import { unlockStatus } from '../lib/challenges';
 import { Medal, UnlockCard } from './ChallengesPage';
+import { GoalTodayCard } from './GoalsPage';
 import RankBadge from '../components/RankBadge';
 import { levelName } from '../lib/rank';
 import { useRanks } from './RankPage';
@@ -192,6 +193,8 @@ export default function Today() {
           <Button big variant="danger" onClick={() => nav('/salta')}>Segna seduta saltata</Button>
           <Button big onClick={() => start('FREE')}>Seduta libera</Button>
         </div>
+
+        <GoalTodayCard />
 
         {match && (
           <Link to="/calcio" className="block">

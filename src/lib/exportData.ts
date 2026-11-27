@@ -2,6 +2,7 @@ import { db, TABLES, KIND_LABEL, type Session, type DayMark } from '../db';
 import { fmtDate, mondayOf, addDays, todayISO } from './dates';
 import { fmtLoad, fmtNum, totalLoad } from './units';
 import { getSettings, setSetting } from './settings';
+import { goalProgress, loadGoalCtx } from './goals';
 import { enemySentence, LABEL_TEXT, stallReport, verifySuccess } from './derived';
 
 export const BACKUP_VERSION = 1;
@@ -131,11 +132,21 @@ export async function coachSummary(mode: 'last' | 'week', ref = todayISO()): Pro
   }
   const succ = (await db.successes.toArray()).filter((x) => x.date >= mon && x.date <= sun);
   if (succ.length) {
-    const vd = { sessions, marks: allMarks, attempts: await db.challengeAttempts.toArray(), challenges: await db.challenges.toArray(), exById, settings: await getSettings() };
+    const vd = { sessions, marks: allMarks, attempts: await db.challengeAttempts.toArray(), challenges: await db.challenges.toArray(), exById, settings: await getSettings(), measures: await db.measurements.toArray() };
     out.push('### Successi nuovi');
     for (const x of succ) {
       const v = verifySuccess(x, vd);
       out.push(`- ${x.title}${x.description ? `: ${x.description}` : ''} · ${LABEL_TEXT[v.label]}${v.verdict ? ` (${v.verdict})` : ''}`);
+    }
+    out.push('');
+  }
+  const goals = (await db.goals.toArray()).filter((g) => g.status === 'active' || (g.status === 'done' && (g.doneOn ?? '') >= mon && (g.doneOn ?? '') <= sun));
+  if (goals.length) {
+    const ctx = await loadGoalCtx(ref);
+    out.push('### Obiettivi');
+    for (const g of goals) {
+      const p = goalProgress(g, ctx);
+      out.push(`- ${g.title}: ${g.status === 'done' ? 'raggiunto ✅' : `${p.pct}% (${p.currentText})${p.next ? ` · ${p.next}` : ''}`}`);
     }
     out.push('');
   }

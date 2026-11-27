@@ -1,10 +1,11 @@
-import { db, SKIP_CATEGORY_LABEL, type Challenge, type ChallengeAttempt, type DayMark, type Exercise, type Session, type SkipCategory, type Success } from '../db';
+import { db, SKIP_CATEGORY_LABEL, type Challenge, type ChallengeAttempt, type DayMark, type Exercise, type Session, type SkipCategory, type Success, type Measurement } from '../db';
 import { addDays, fmtDate, todayISO } from './dates';
 import { exerciseLogs, stallInfo } from './stall';
 import { fmtNum, totalLoad } from './units';
 import { weekStats } from './stats';
 import { computeRanks, levelName } from './rank';
 import { getSettings, setSetting, type AppSettings } from './settings';
+import { goalProgress, loadGoalCtx } from './goals';
 
 // ---------- verifica dei successi ----------
 
@@ -22,6 +23,7 @@ export interface VerifyData {
   challenges: Challenge[];
   exById: Map<number, Exercise>;
   settings: AppSettings;
+  measures: Measurement[];
 }
 
 export function verifySuccess(s: Success, d: VerifyData): { label: Label; verdict: string | null } {
@@ -81,6 +83,19 @@ export function verifySuccess(s: Success, d: VerifyData): { label: Label; verdic
     const pct = tg ? Math.round((dn / tg) * 100) : 100;
     if (pct >= c.pct) return { label: 'verified', verdict: null };
     return { label: 'unconfirmed', verdict: `Hai scritto ${c.pct}% di costanza in ${c.weeks} settimane, ma il registro dice ${pct}% (${dn}/${tg} sedute).` };
+  }
+  if (c.type === 'seduta' && c.date) {
+    if (done.some((x) => x.date === c.date)) return { label: 'verified', verdict: null };
+    return { label: 'unconfirmed', verdict: `Nel registro non c’è nessuna seduta fatta il ${fmtDate(c.date)}.` };
+  }
+  if (c.type === 'misura' && c.date) {
+    if (d.measures.some((x) => x.date === c.date)) return { label: 'verified', verdict: null };
+    return { label: 'unconfirmed', verdict: `Nel registro non c’è nessuna misura del ${fmtDate(c.date)}.` };
+  }
+  if (c.type === 'ripresa' && c.date) {
+    const back = done.find((x) => x.date > c.date!);
+    if (back) return { label: 'verified', verdict: null };
+    return { label: 'unconfirmed', verdict: `Nel registro non c’è ancora una seduta dopo la malattia del ${fmtDate(c.date)}.` };
   }
   return { label: 'declared', verdict: null };
 }
@@ -198,6 +213,23 @@ async function doSync(): Promise<void> {
       });
     }
   }
+  // obiettivi: tappe e traguardi nel barattolo
+  const goals = await db.goals.where('status').equals('active').toArray();
+  if (goals.length) {
+    const ctx = await loadGoalCtx(today);
+    for (const g of goals) {
+      const p = goalProgress(g, ctx);
+      for (const m of p.milestones.filter((x) => x.reached)) {
+        await addAuto({ date: today, title: `Tappa: ${g.title}`, description: m.label, category: 'palestra', source: 'goal', autoKey: `goal:${g.id}:${m.key}`, claim: { type: 'obiettivo', goalId: g.id } });
+      }
+      if (p.done) {
+        await db.goals.update(g.id!, { status: 'done', doneOn: today });
+        await addAuto({ date: today, title: `Obiettivo raggiunto: ${g.title}`, description: 'Un passo piccolo alla volta.', category: 'palestra', source: 'goal', autoKey: `goal:${g.id}:done`, claim: { type: 'obiettivo', goalId: g.id } });
+        notices.push({ id: `g-${g.id}`, kind: 'goal', level: 0, title: 'Obiettivo raggiunto', text: `${g.title}. Arrivato a tappe piccole, senza salti. Scegli il prossimo quando vuoi.` });
+      }
+    }
+  }
+
   if (notices.length !== settings.notices.length) await setSetting('notices', notices);
 }
 

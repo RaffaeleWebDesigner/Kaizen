@@ -9,7 +9,17 @@ export default function NoticeHost() {
   const n = s?.notices[0];
   if (!s || !n) return null;
   const close = () => setSetting('notices', s.notices.slice(1));
-  const color = tierOf(n.level).tier.color;
+  if (n.kind === 'goal') {
+    return (
+      <div className="fixed inset-0 z-[80] bg-bg flex flex-col items-center justify-center p-6 text-center overflow-hidden" role="dialog" aria-modal="true">
+        <div className="relative kz-pop text-[120px] leading-none" aria-hidden>🎯</div>
+        <div className="relative text-xs uppercase tracking-[0.3em] text-accent font-bold mt-6">{n.title}</div>
+        <p className="relative text-xl font-bold mt-2 max-w-sm">{n.text}</p>
+        <Button big variant="primary" className="relative mt-8 w-full max-w-sm" onClick={close}>Avanti così</Button>
+      </div>
+    );
+  }
+  const color = tierOf(Math.max(1, n.level)).tier.color;
   if (n.kind === 'promotion') {
     return (
       <div className="fixed inset-0 z-[80] bg-bg flex flex-col items-center justify-center p-6 text-center overflow-hidden" role="dialog" aria-modal="true">
