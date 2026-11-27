@@ -4,13 +4,16 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 import { Card, Header } from '../components/ui';
 import { useData } from '../lib/useData';
 import { exerciseHistory, monthStats, personalRecords, streak, weekStats, doneSessions } from '../lib/stats';
-import { fmtDate, monthName, todayISO } from '../lib/dates';
+import { addDays, diffDays, fmtDate, monthName, todayISO } from '../lib/dates';
 import { fmtNum } from '../lib/units';
+import { compareAgo, fmtBest } from '../lib/consistency';
+import { Chips } from '../components/ui';
 import { chartTooltip } from './BodyPage';
 
 export default function ProgressPage() {
   const data = useData();
   const [exId, setExId] = useState<number | null>(null);
+  const [ago, setAgo] = useState<30 | 365>(30);
   if (!data) return null;
   const today = todayISO();
   const weeks = weekStats(data.sessions, data.marks, data.settings.startDate, today, data.settings.weeklyGoal);
@@ -41,6 +44,8 @@ export default function ProgressPage() {
           <Link to="/saltate"><Card className="p-3"><div className="font-semibold">Sedute saltate</div><div className="text-xs text-muted">motivi e nemico n.1</div></Card></Link>
           <Link to="/rank"><Card className="p-3"><div className="font-semibold">Rank</div><div className="text-xs text-muted">forza stimata</div></Card></Link>
         </div>
+
+        <AgoCard sessions={data.sessions} today={today} start={data.settings.startDate} ago={ago} setAgo={setAgo} />
 
         <Card>
           <h2 className="font-bold mb-2">Costanza per settimana</h2>
@@ -128,5 +133,36 @@ export default function ProgressPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function AgoCard({ sessions, today, start, ago, setAgo }: { sessions: Parameters<typeof compareAgo>[0]; today: string; start: string; ago: 30 | 365; setAgo: (v: 30 | 365) => void }) {
+  const rows = compareAgo(sessions, today, ago).slice(0, 8);
+  const ready = rows.some((r) => r.then);
+  const wait = Math.max(0, diffDays(addDays(start, ago), today));
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-2 gap-2">
+        <h2 className="font-bold">{ago === 30 ? 'Un mese fa' : 'Un anno fa'}</h2>
+        <Chips options={[{ value: 30, label: '1 mese' }, { value: 365, label: '1 anno' }]} value={ago} onChange={(v) => setAgo(v as 30 | 365)} />
+      </div>
+      {!ready ? (
+        <p className="text-sm text-muted">{wait > 0 ? `Il primo confronto tra ${wait} ${wait === 1 ? 'giorno' : 'giorni'}: intanto continua a presentarti.` : 'Nessun esercizio fatto in entrambi i periodi.'}</p>
+      ) : (
+        <div className="text-sm space-y-0.5">
+          {rows.filter((r) => r.then).map((r) => {
+            const up = r.now.load > r.then!.load + 1e-9 || (Math.abs(r.now.load - r.then!.load) < 1e-9 && r.now.reps > r.then!.reps);
+            return (
+              <div key={r.exerciseId} className="flex justify-between gap-2">
+                <span className="text-muted truncate">{r.name}</span>
+                <span className="tabular text-right shrink-0">{fmtBest(r.then!, r.unit, r.type)} → <b className={up ? 'text-accent' : ''}>{fmtBest(r.now, r.unit, r.type)}</b></span>
+              </div>
+            );
+          })}
+          <p className="text-xs text-muted pt-1">Miglior serie delle ultime 4 settimane rispetto alle 4 settimane che finivano {ago === 30 ? 'un mese' : 'un anno'} fa.</p>
+        </div>
+      )}
+      <Link to={`/foto/confronta?giorni=${ago}`} className="block text-sm text-accent mt-2 min-h-[40px] pt-2">📷 Confronta le foto con {ago === 30 ? 'un mese' : 'un anno'} fa ›</Link>
+    </Card>
   );
 }

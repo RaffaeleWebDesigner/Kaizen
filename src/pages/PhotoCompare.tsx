@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Chips, Field, Header, inputCls } from '../components/ui';
 import { db, type Photo } from '../db';
-import { fmtDateFull } from '../lib/dates';
+import { addDays, diffDays, fmtDateFull } from '../lib/dates';
 import { usePhotoUrl } from './PhotosPage';
 
 export default function PhotoCompare() {
@@ -12,16 +13,21 @@ export default function PhotoCompare() {
   const [b, setB] = useState<number | null>(null);
   const [pos, setPos] = useState(50);
   const [mode, setMode] = useState<'slider' | 'side'>('slider');
+  const days = Number(useSearchParams()[0].get('giorni')) || 0;
 
   useEffect(() => {
     if (photos && photos.length) {
-      setA(photos[0].id!);
-      setB(photos[photos.length - 1].id!);
+      const last = photos[photos.length - 1];
+      // "un mese fa / un anno fa": la foto più vicina a quella data
+      const ref = days ? addDays(last.date, -days) : null;
+      const first = ref ? photos.slice(0, -1).reduce((x, p) => (Math.abs(diffDays(p.date, ref)) < Math.abs(diffDays(x.date, ref)) ? p : x), photos[0]) : photos[0];
+      setA(first.id!);
+      setB(last.id!);
     } else {
       setA(null);
       setB(null);
     }
-  }, [photos]);
+  }, [photos, days]);
 
   const pa = photos?.find((p) => p.id === a) ?? null;
   const pb = photos?.find((p) => p.id === b) ?? null;

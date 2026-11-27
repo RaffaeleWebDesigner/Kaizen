@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Field, Header, NumInput, inputCls, toast } from '../components/ui';
-import { setSetting, useSettings } from '../lib/settings';
-import { DAY_SHORT_LIST } from '../lib/dates';
-import { buildIcs } from '../lib/ics';
+import { setSetting, useSettings, type DayPlan } from '../lib/settings';
+import { DAY_SHORT_LIST, dayName } from '../lib/dates';
+import { buildIcsPlans } from '../lib/ics';
+import { planSentence } from '../lib/consistency';
 import { download } from '../lib/exportData';
 
 export default function RemindersPage() {
@@ -11,23 +12,33 @@ export default function RemindersPage() {
   const [time, setTime] = useState('18:30');
   const [dur, setDur] = useState<number | null>(45);
   const [alert, setAlert] = useState<number | null>(30);
+  const [plans, setPlans] = useState<DayPlan[]>([]);
   useEffect(() => {
     if (s && days === null) {
       setDays(s.gymDays);
       setTime(s.gymTime);
+      setPlans(s.dayPlans);
       setDur(s.gymDurationMin);
       setAlert(s.alertMin);
     }
   }, [s, days]);
   if (!s || days === null) return null;
+  const planOf = (d: number): DayPlan => plans.find((p) => p.day === d) ?? { day: d, time, cue: '' };
+  const setPlan = (d: number, patch: Partial<DayPlan>) => setPlans([...plans.filter((p) => p.day !== d), { ...planOf(d), ...patch }]);
+  const savePlans = async () => {
+    const list = days.map(planOf);
+    await setSetting('gymDays', days);
+    await setSetting('dayPlans', list);
+    if (list[0]) await setSetting('gymTime', list[0].time);
+    await setSetting('gymDurationMin', dur ?? 45);
+    await setSetting('alertMin', alert ?? 30);
+    return list;
+  };
 
   const make = async (share: boolean) => {
     if (!days.length) return toast('Scegli almeno un giorno');
-    await setSetting('gymDays', days);
-    await setSetting('gymTime', time);
-    await setSetting('gymDurationMin', dur ?? 45);
-    await setSetting('alertMin', alert ?? 30);
-    const ics = buildIcs(days, time, dur ?? 45, alert ?? 30);
+    const list = await savePlans();
+    const ics = buildIcsPlans(list, dur ?? 45, alert ?? 30);
     const file = new File([ics], 'kaizen-palestra.ics', { type: 'text/calendar' });
     if (share && navigator.canShare?.({ files: [file] })) {
       try {
@@ -54,8 +65,27 @@ export default function RemindersPage() {
                 className={`h-12 rounded-xl border text-sm ${days.includes(i) ? 'bg-accent text-black border-accent font-bold' : 'bg-surface2 border-line'}`}>{d}</button>
             ))}
           </div>
+          {days.length > 0 && (
+            <div className="space-y-3 mb-3">
+              <p className="text-sm text-muted">Il tuo piano "se... allora": quando e dove inizi. Più è preciso, più è facile partire.</p>
+              {days.map((d) => {
+                const p = planOf(d);
+                return (
+                  <div key={d} className="rounded-xl border border-line p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold capitalize flex-1">{dayName(`2026-11-${16 + d}`)}</span>
+                      <input type="time" aria-label={`Ora ${DAY_SHORT_LIST[d]}`} className={`${inputCls} w-32`} value={p.time} onChange={(e) => setPlan(d, { time: e.target.value })} />
+                    </div>
+                    <input className={inputCls} aria-label={`Piano ${DAY_SHORT_LIST[d]}`} placeholder="appena torno dal lavoro, scendo in palestra" value={p.cue} onChange={(e) => setPlan(d, { cue: e.target.value })} />
+                    <p className="text-xs text-muted mt-1">{planSentence(p, true)}</p>
+                  </div>
+                );
+              })}
+              <Button className="w-full" onClick={async () => { await savePlans(); toast('Piano salvato'); }}>Salva il piano</Button>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2">
-            <Field label="Ora">
+            <Field label="Ora nuovi giorni">
               <input type="time" className={inputCls} value={time} onChange={(e) => setTime(e.target.value)} />
             </Field>
             <Field label="Durata (min)">
@@ -69,7 +99,7 @@ export default function RemindersPage() {
             <Button big variant="primary" onClick={() => make(true)}>Crea e apri il file calendario</Button>
             <Button onClick={() => make(false)}>Scarica il file .ics</Button>
           </div>
-          <p className="text-xs text-muted mt-2">I giorni scelti servono anche al banner "Oggi è giorno di palestra" nella Home.</p>
+          <p className="text-xs text-muted mt-2">I giorni e il piano compaiono anche nel banner "Oggi è giorno di palestra" nella Home. Ogni giorno diventa un evento con la sua ora e il suo piano.</p>
         </Card>
 
         <Card>
@@ -87,7 +117,7 @@ export default function RemindersPage() {
             <li>Se non si apre: su un computer vai su calendar.google.com → Impostazioni → Importa ed esporta → scegli il file.</li>
           </ol>
           <p className="font-semibold text-sm">Se cambi giorni o orario</p>
-          <p className="text-sm text-muted">Prima elimina l’evento "Palestra – Metodo Kaizen" dal calendario (scegli "tutti gli eventi futuri"), poi rigenera e reimporta il file, così non hai doppioni.</p>
+          <p className="text-sm text-muted">Prima elimina gli eventi "Palestra – Metodo Kaizen" dal calendario (scegli "tutti gli eventi futuri"), poi rigenera e reimporta il file, così non hai doppioni.</p>
         </Card>
       </div>
     </div>

@@ -77,7 +77,7 @@ describe('obiettivi', () => {
     const all = suggestGoals(c, []);
     expect(all.map((d) => d.kind)).toEqual(['streak', 'exercise']);
     expect(all[1].targetReps).toBe(6);
-    const act = [{ kind: 'streak', status: 'active' } as Goal];
+    const act = [{ kind: 'streak', status: 'active', target: 4 } as Goal];
     expect(suggestGoals(c, act).map((d) => d.kind)).toEqual(['exercise']);
   });
 });

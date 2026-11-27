@@ -220,13 +220,13 @@ export interface Success {
   createdAt: number;
 }
 
-export type GoalKind = 'streak' | 'exercise' | 'rank' | 'body' | 'habit';
+export type GoalKind = 'streak' | 'exercise' | 'rank' | 'body' | 'habit' | 'total' | 'ratio';
 
 export interface Goal {
   id?: number;
   kind: GoalKind;
   title: string;
-  status: 'active' | 'done' | 'archived';
+  status: 'active' | 'done' | 'archived' | 'queued'; // queued = in coda, parte quando si libera un posto
   createdAt: number;
   createdOn: string; // data di creazione
   doneOn?: string;
@@ -240,6 +240,14 @@ export interface Goal {
   /** body: valore di partenza */
   baseline?: number;
   note?: string;
+  /** exercise: serie da fare (1 = "di fila"); se manca, quelle del modello */
+  sets?: number;
+  /** body: ritmo di riferimento al mese (es. 1 cm), non una scadenza */
+  perMonth?: number;
+  /** patto con te stesso: la ricompensa scelta per questo traguardo */
+  reward?: string;
+  /** tappe già superate quando l'obiettivo è partito: non finiscono nel barattolo */
+  skipMs?: string[];
 }
 
 export interface RankSnap {

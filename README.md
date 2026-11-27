@@ -119,6 +119,22 @@ Anche qui il database passa alla versione 3 aggiungendo solo la tabella degli ob
   Due settimane perfette (dalla settimana 12).
 - **Primi successi** nel barattolo, inseriti una volta sola all'aggiornamento e verificati sul registro quando possibile.
 
+## Strumenti per la costanza
+
+- **Piano "se... allora"** (Altro → Promemoria): per ogni giorno di palestra un'ora e una frase ("appena torno dal lavoro, scendo in palestra").
+  Il file .ics crea un evento per giorno con il piano nell'avviso; la Home lo mostra nel banner del giorno.
+- **Regola dei 2 minuti**: il pulsante "👟 Mi metto solo le scarpe" apre la seduta minima. Basta il primo esercizio: la seduta conta.
+- **Mai saltare due volte**: se ieri hai saltato, o era un giorno del piano senza seduta (malattia esclusa), oggi la Home mostra solo la minima.
+- **Revisione della domenica in 1 minuto**: sedute, record e saltate compilati in automatico; tu scrivi una cosa da migliorare.
+  Il pulsante "Manda al compagno di costanza" apre WhatsApp con un riepilogo di 3 righe (scegli tu il contatto).
+- **Un mese fa / un anno fa** (Progressi): miglior serie di ogni esercizio rispetto ad allora, e le foto più vicine a quella data.
+- **Traguardi delle sedute** 25, 50, 100, 150, 200, 365, 500…: finiscono nel barattolo dei successi.
+- **Obiettivi**: nuovi tipi Sedute totali e Forza / peso (stimata, mai test di massimale), obiettivi "di fila" su una serie,
+  gli obiettivi del coach con un tocco, la lista "Prossimi" che parte da sola quando si libera un posto.
+- **Patti con te stesso**: una ricompensa per ogni obiettivo e per i traguardi delle sedute, sbloccata al traguardo.
+
+Tutto viaggia nelle tabelle già sincronizzate (impostazioni, obiettivi, successi): nessuna tabella nuova.
+
 ## Promemoria nel calendario (.ics)
 
 L'app non manda notifiche push: crea un evento ricorrente nel calendario del telefono, con un avviso prima dell'allenamento.
@@ -156,6 +172,7 @@ src/lib/derived.ts    successi automatici, verifica, analisi saltate
 src/lib/photos.ts     compressione e ZIP delle foto
 src/lib/ics.ts        file calendario
 src/lib/goals.ts      obiettivi a tappe
+src/lib/consistency.ts piano se-allora, mai due volte, traguardi, confronti, WhatsApp
 src/pages/            schermate
 scripts/make-icons.mjs  rigenera le icone PNG da public/favicon.svg
 ```

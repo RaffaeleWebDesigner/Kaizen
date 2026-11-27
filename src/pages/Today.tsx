@@ -19,6 +19,7 @@ import { levelName } from '../lib/rank';
 import { useRanks } from './RankPage';
 import { LetterOverlay } from './LetterPage';
 import { setSetting } from '../lib/settings';
+import { neverTwiceReason, nextSessionMilestone, planFor, planSentence } from '../lib/consistency';
 
 export default function Today() {
   const data = useData();
@@ -26,6 +27,7 @@ export default function Today() {
   const [now, setNow] = useState(new Date());
   const [legAsk, setLegAsk] = useState<{ kind: SessionKind; reason: string } | null>(null);
   const [letterClosed, setLetterClosed] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const photos = useLiveQuery(() => db.photos.toArray(), []);
   const attempts = useLiveQuery(() => db.challengeAttempts.toArray(), []);
   const challenges = useLiveQuery(() => db.challenges.toArray(), []);
@@ -69,12 +71,16 @@ export default function Today() {
   const lastDate = done[0]?.date ?? settings.startDate;
   const sickSince = new Set(marks.filter((m) => m.type === 'sick' && m.date > lastDate && m.date <= today).map((m) => m.date)).size;
   const idleDays = diffDays(today, lastDate) - sickSince;
+  const twice = nothingToday && !open ? neverTwiceReason(sessions, marks, settings, today) : null;
+  const focusMin = late || !!twice;
+  const plan = planFor(settings, today);
+  const nextMs = nextSessionMilestone(done.length);
   const showLetter = !letterClosed && !!settings.letterCurrent && idleDays > 5 && settings.letterShownOn !== today && nothingToday;
 
   const start = async (kind: SessionKind, skipLegs = false) => {
     if (open) return nav(`/seduta/${open.id}`);
     const id = await createSession(kind, today, { skipLegs });
-    nav(`/seduta/${id}`);
+    nav(`/seduta/${id}${kind === 'MIN' ? '?scarpe=1' : ''}`);
   };
 
   const tryStart = (kind: SessionKind) => {
@@ -101,12 +107,20 @@ export default function Today() {
         {gymDay && nothingToday && (
           <Card className="bg-accent text-black border-accent">
             <div className="font-black text-lg">Oggi è giorno di palestra</div>
+            {plan && <div className="font-semibold">{planSentence(plan)}</div>}
             <div className="text-sm">{late ? 'È tardi? Fai la minima: 10-15 minuti e conta.' : 'Presentati. Il resto si sistema.'}</div>
           </Card>
         )}
-        {late && (
-          <Button big variant="primary" className="w-full min-h-[80px] text-xl" onClick={() => tryStart('MIN')}>
-            Seduta minima (10-15 min)
+        {twice && (
+          <Card className="border-minima/60" >
+            <div className="font-black text-lg text-minima">Mai due volte di fila</div>
+            <div className="text-sm text-muted">{twice} Oggi conta solo presentarsi: mettiti le scarpe e fai la minima.</div>
+          </Card>
+        )}
+        {focusMin && (
+          <Button big variant="primary" className="w-full min-h-[80px] flex flex-col items-center justify-center" onClick={() => tryStart('MIN')}>
+            <span className="text-xl">👟 Mi metto solo le scarpe</span>
+            <span className="text-xs font-normal">seduta minima, 10-15 minuti</span>
           </Button>
         )}
         {open && (
@@ -122,6 +136,12 @@ export default function Today() {
           <div className="text-xs uppercase tracking-widest text-muted">Barattolo · sedute fatte</div>
           <div className="text-7xl font-black text-accent tabular leading-none my-2" data-testid="cookie-jar">{done.length}</div>
           <p className="text-sm text-muted">{JAR_LINE}</p>
+          {nextMs && (
+            <p className="text-xs text-muted mt-2">
+              Prossimo traguardo: <b className="text-ink">{nextMs}</b> (mancano {nextMs - done.length})
+              {settings.rewards[String(nextMs)] ? <> · 🎁 {settings.rewards[String(nextMs)]}</> : null}
+            </p>
+          )}
           {medals.length > 0 && (
             <Link to="/sfide" className="flex flex-wrap justify-center gap-2 mt-3">
               {medals.map((m) => (
@@ -174,6 +194,9 @@ export default function Today() {
           <p className="text-center text-accent font-semibold">Oggi hai già fatto {doneToday.length === 1 ? 'una seduta' : `${doneToday.length} sedute`}. Ottimo così.</p>
         )}
 
+        {twice && !showAll ? (
+          <Button className="w-full" onClick={() => setShowAll(true)}>Altre sedute (A, B, C)</Button>
+        ) : (
         <div className="grid grid-cols-3 gap-2 pt-1">
           {(['A', 'B', 'C'] as const).map((k) => (
             <Button key={k} variant={k === nextKind ? 'primary' : 'secondary'} className="min-h-[88px] flex flex-col items-center justify-center" onClick={() => tryStart(k)}>
@@ -183,9 +206,11 @@ export default function Today() {
             </Button>
           ))}
         </div>
-        {!late && (
-          <Button big variant="minima" className="w-full" onClick={() => tryStart('MIN')}>
-            Seduta minima (10-15 min)
+        )}
+        {!focusMin && (
+          <Button big variant="minima" className="w-full flex flex-col items-center justify-center" onClick={() => tryStart('MIN')}>
+            <span>👟 Mi metto solo le scarpe</span>
+            <span className="text-xs font-normal opacity-80">seduta minima, 10-15 minuti</span>
           </Button>
         )}
         <p className="text-xs text-muted text-center -mt-1">{MINIMA_LINE}</p>
@@ -268,8 +293,8 @@ export default function Today() {
         {reviewDue && (
           <Link to={`/revisioni?settimana=${reviewWeek}`} className="block">
             <Card>
-              <div className="font-semibold">Revisione della settimana</div>
-              <div className="text-sm text-muted">Due minuti: cosa ha funzionato, cosa ti ha bloccato, cosa cambi.</div>
+              <div className="font-semibold">Revisione della domenica · 1 minuto</div>
+              <div className="text-sm text-muted">I numeri li ho già messi io: tu scrivi solo una cosa da migliorare.</div>
             </Card>
           </Link>
         )}

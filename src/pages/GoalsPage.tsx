@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Button, Card, Chips, Confirm, Field, Header, NumInput, Sheet, inputCls, toast } from '../components/ui';
 import { db, type Goal, type GoalKind, type RankKey } from '../db';
 import {
-  GOAL_KIND_LABEL, MAX_ACTIVE_GOALS, goalDraftProblem, nextNaturalStep, goalProgress, goalTitle, loadGoalCtx, makeGoal, suggestGoals,
+  GOAL_KIND_LABEL, MAX_ACTIVE_GOALS, coachGoals, goalDraftProblem, nextNaturalStep, goalProgress, goalTitle, loadGoalCtx, makeGoal, suggestGoals,
   type GoalCtx, type GoalDraft, type GoalProgress,
 } from '../lib/goals';
 import { exerciseLogs, levelOf } from '../lib/stall';
@@ -13,6 +13,8 @@ import { fmtDate } from '../lib/dates';
 import { fmtNum } from '../lib/units';
 import { syncDerived } from '../lib/derived';
 import { withBar } from '../lib/sessionUtils';
+import { SESSION_MILESTONES } from '../lib/consistency';
+import { setSetting } from '../lib/settings';
 
 function useGoals() {
   const goals = useLiveQuery(() => db.goals.toArray(), []);
@@ -26,6 +28,24 @@ function Bar({ pct }: { pct: number }) {
     <div className="h-2 rounded-full bg-surface2 overflow-hidden">
       <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
     </div>
+  );
+}
+
+function RewardLine({ g }: { g: Goal }) {
+  const [edit, setEdit] = useState(false);
+  const [text, setText] = useState(g.reward ?? '');
+  if (edit) {
+    return (
+      <div className="flex gap-2 mt-2">
+        <input className={inputCls} value={text} placeholder="es. una maglia nuova da allenamento" onChange={(e) => setText(e.target.value)} aria-label="Ricompensa" />
+        <Button variant="primary" onClick={async () => { await db.goals.update(g.id!, { reward: text.trim() || undefined }); setEdit(false); }}>Ok</Button>
+      </div>
+    );
+  }
+  return (
+    <button className="block w-full text-sm mt-2 min-h-[36px] text-left" onClick={() => setEdit(true)}>
+      {g.reward ? <span>🎁 Patto: <b>{g.reward}</b></span> : <span className="text-muted">🎁 Aggiungi una ricompensa per questo traguardo</span>}
+    </button>
   );
 }
 
@@ -56,8 +76,9 @@ function GoalCard({ g, p, onArchive }: { g: Goal; p: GoalProgress; onArchive?: (
           ))}
         </div>
       )}
-      {onArchive && g.status === 'active' && (
-        <button className="text-xs text-muted mt-2 min-h-[36px]" onClick={onArchive}>Metti da parte</button>
+      {g.status !== 'done' ? <RewardLine g={g} /> : g.reward ? <p className="text-sm mt-2">🎁 Ricompensa sbloccata: <b>{g.reward}</b></p> : null}
+      {onArchive && (g.status === 'active' || g.status === 'queued') && (
+        <button className="block text-xs text-muted mt-1 min-h-[36px]" onClick={onArchive}>Metti da parte</button>
       )}
     </Card>
   );
@@ -99,14 +120,20 @@ export default function GoalsPage() {
   if (!d) return null;
   const { goals, ctx } = d;
   const active = goals.filter((g) => g.status === 'active');
+  const queued = goals.filter((g) => g.status === 'queued').sort((a, b) => a.createdAt - b.createdAt);
   const done = goals.filter((g) => g.status === 'done').sort((a, b) => (b.doneOn ?? '').localeCompare(a.doneOn ?? ''));
-  const suggestions = active.length < MAX_ACTIVE_GOALS ? suggestGoals(ctx, active) : [];
+  const open = [...active, ...queued];
+  const suggestions = active.length < MAX_ACTIVE_GOALS ? suggestGoals(ctx, open) : [];
+  const coach = coachGoals(ctx, open);
 
-  const add = async (draft: GoalDraft) => {
-    const problem = goalDraftProblem(draft, ctx, active.length);
+  /** Se ci sono già 3 obiettivi attivi, il nuovo va nei "Prossimi". */
+  const add = async (draft: GoalDraft, quiet = false) => {
+    const nowActive = (await db.goals.where('status').equals('active').count());
+    const problem = goalDraftProblem(draft, ctx, 0);
     if (problem) return toast(problem);
-    await db.goals.add(makeGoal(draft, ctx));
-    toast('Obiettivo aggiunto');
+    const status = nowActive >= MAX_ACTIVE_GOALS ? 'queued' : 'active';
+    await db.goals.add({ ...makeGoal(draft, ctx, status), createdAt: Date.now() + Math.random() });
+    if (!quiet) toast(status === 'queued' ? 'Aggiunto ai prossimi: parte quando si libera un posto' : 'Obiettivo aggiunto');
     syncDerived();
   };
 
@@ -121,6 +148,27 @@ export default function GoalsPage() {
 
         {active.length > 0 && <h2 className="font-bold pt-1">Attivi</h2>}
         {active.map((g) => <GoalCard key={g.id} g={g} p={goalProgress(g, ctx)} onArchive={() => setArchive(g)} />)}
+
+        {queued.length > 0 && (
+          <>
+            <h2 className="font-bold pt-1">Prossimi</h2>
+            <p className="text-xs text-muted -mt-2">Partono da soli, in quest’ordine, quando chiudi un obiettivo attivo.</p>
+            {queued.map((g) => <GoalCard key={g.id} g={g} p={goalProgress(g, ctx)} onArchive={() => setArchive(g)} />)}
+          </>
+        )}
+
+        {coach.length > 0 && (
+          <Card>
+            <div className="font-semibold">Obiettivi proposti dal coach</div>
+            <ul className="text-sm text-muted list-disc ml-5 my-2 space-y-0.5">
+              {coach.map((d) => <li key={d.title}>{d.title}</li>)}
+            </ul>
+            <Button variant="primary" className="w-full" onClick={async () => {
+              for (const d of coach) await add(d, true);
+              toast(`Aggiunti: i primi partono subito, gli altri sono nei prossimi`);
+            }}>Aggiungi {coach.length === 1 ? 'questo' : `tutti e ${coach.length}`}</Button>
+          </Card>
+        )}
 
         {suggestions.length > 0 && (
           <>
@@ -140,11 +188,10 @@ export default function GoalsPage() {
           </>
         )}
 
-        {active.length < MAX_ACTIVE_GOALS ? (
-          <Button big className="w-full" onClick={() => setAdding(true)}>+ Nuovo obiettivo</Button>
-        ) : (
-          <p className="text-sm text-muted text-center">Hai {MAX_ACTIVE_GOALS} obiettivi attivi: concentrati su questi.</p>
-        )}
+        <Button big className="w-full" onClick={() => setAdding(true)}>+ Nuovo obiettivo</Button>
+        {active.length >= MAX_ACTIVE_GOALS && <p className="text-xs text-muted text-center -mt-1">Hai {MAX_ACTIVE_GOALS} obiettivi attivi: i nuovi vanno nei prossimi.</p>}
+
+        <SessionRewards ctx={ctx} />
 
         {done.length > 0 && <h2 className="font-bold pt-1">Raggiunti</h2>}
         {done.map((g) => <GoalCard key={g.id} g={g} p={goalProgress(g, ctx)} />)}
@@ -153,7 +200,7 @@ export default function GoalsPage() {
       {adding && <NewGoalSheet ctx={ctx} onClose={() => setAdding(false)} onAdd={async (dr) => { await add(dr); setAdding(false); }} />}
       <Confirm open={!!archive} onClose={() => setArchive(null)} title="Mettere da parte l’obiettivo?" confirmLabel="Metti da parte"
         text="Le tappe già raggiunte restano nel barattolo. Puoi sceglierne uno nuovo quando vuoi."
-        onConfirm={async () => { await db.goals.update(archive!.id!, { status: 'archived' }); toast('Obiettivo messo da parte'); }} />
+        onConfirm={async () => { await db.goals.update(archive!.id!, { status: 'archived' }); toast('Obiettivo messo da parte'); syncDerived(); }} />
     </div>
   );
 }
@@ -180,6 +227,10 @@ function NewGoalSheet({ ctx, onClose, onAdd }: { ctx: GoalCtx; onClose: () => vo
   const [rankTarget, setRankTarget] = useState<number | null>(null);
   const [metric, setMetric] = useState<'weight' | 'waist'>('weight');
   const [bodyTarget, setBodyTarget] = useState<number | null>(null);
+  const [single, setSingle] = useState(false);
+  const [total, setTotal] = useState<number | null>(100);
+  const [ratio, setRatio] = useState<number | null>(1);
+  const [reward, setReward] = useState('');
 
   const draftReps = reps ?? natural?.reps ?? 8;
   const draftLoad = load ?? natural?.load ?? offset;
@@ -187,7 +238,9 @@ function NewGoalSheet({ ctx, onClose, onAdd }: { ctx: GoalCtx; onClose: () => vo
     switch (kind) {
       case 'streak': return { kind, title: '', target: weeks ?? 0 };
       case 'habit': return { kind, title: '', target: weeks ?? 0 };
-      case 'exercise': return { kind, title: '', exerciseId: exId ?? undefined, target: draftLoad, targetReps: draftReps };
+      case 'exercise': return { kind, title: '', exerciseId: exId ?? undefined, target: draftLoad, targetReps: draftReps, sets: single ? 1 : undefined };
+      case 'total': return { kind, title: '', target: total ?? 0 };
+      case 'ratio': return { kind, title: '', rankKey, target: ratio ?? 0 };
       case 'rank': return { kind, title: '', rankKey, target: rankTarget ?? Math.min(23, curRank + 1), baseline: curRank };
       case 'body': return { kind, title: '', metric, target: bodyTarget ?? NaN };
     }
@@ -227,8 +280,9 @@ function NewGoalSheet({ ctx, onClose, onAdd }: { ctx: GoalCtx; onClose: () => vo
               </select>
             </Field>
             {lastLevel && ex && <p className="text-xs text-muted -mt-1">Ultima volta: {ex.type === 'time' ? `${lastLevel.reps}"` : `${lastLevel.reps} rip.`}{lastLevel.load + offset > 0 ? ` × ${fmtNum(lastLevel.load + offset, 2)} ${ex.unit}` : ''}</p>}
+            <Chips options={[{ value: 'n', label: 'Tutte le serie' }, { value: '1', label: 'Una serie (di fila)' }]} value={single ? '1' : 'n'} onChange={(v) => setSingle(v === '1')} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label={ex?.type === 'time' ? 'Secondi' : 'Ripetizioni per serie'}>
+              <Field label={ex?.type === 'time' ? 'Secondi' : single ? 'Ripetizioni di fila' : 'Ripetizioni per serie'}>
                 <NumInput value={draftReps} onChange={setReps} />
               </Field>
               {ex?.type !== 'time' && (
@@ -252,6 +306,21 @@ function NewGoalSheet({ ctx, onClose, onAdd }: { ctx: GoalCtx; onClose: () => vo
           </>
         )}
 
+        {kind === 'total' && (
+          <Field label="Sedute totali" hint={`Ne hai già fatte ${ctx.sessions.filter((x) => x.status === 'done').length}. Anche la minima conta.`}>
+            <NumInput value={total} onChange={setTotal} />
+          </Field>
+        )}
+
+        {kind === 'ratio' && (
+          <>
+            <Chips<RankKey> options={(Object.keys(RANK_EXERCISE_LABEL) as RankKey[]).map((k) => ({ value: k, label: RANK_EXERCISE_LABEL[k] }))} value={rankKey} onChange={setRankKey} />
+            <Field label="Quante volte il peso corporeo" hint="Si misura sul massimale stimato dalle serie normali: niente test di massimale.">
+              <NumInput value={ratio} onChange={setRatio} />
+            </Field>
+          </>
+        )}
+
         {kind === 'body' && (
           <>
             <Chips options={[{ value: 'weight', label: 'Peso' }, { value: 'waist', label: 'Vita' }]} value={metric} onChange={(v) => setMetric(v as 'weight' | 'waist')} />
@@ -270,10 +339,34 @@ function NewGoalSheet({ ctx, onClose, onAdd }: { ctx: GoalCtx; onClose: () => vo
             {p.done && <div className="text-accent mt-1">Questo traguardo l’hai già raggiunto: scegline uno un passo più in là.</div>}
           </Card>
         )}
+        <Field label="🎁 Ricompensa (facoltativa)" hint="Il patto con te stesso: si sblocca al traguardo.">
+          <input className={inputCls} value={reward} onChange={(e) => setReward(e.target.value)} placeholder="es. una maglia nuova da allenamento" />
+        </Field>
         {warn && <p className="text-sm text-minima">{warn}</p>}
         {problem && kind === 'body' && <p className="text-sm text-muted">{problem}</p>}
-        <Button big variant="primary" className="w-full" disabled={!!problem || !!p?.done} onClick={() => onAdd({ ...draft, title: goalTitle(draft, ctx.exById) })}>Aggiungi obiettivo</Button>
+        <Button big variant="primary" className="w-full" disabled={!!problem || !!p?.done} onClick={() => onAdd({ ...draft, title: goalTitle(draft, ctx.exById), reward: reward.trim() || undefined })}>Aggiungi obiettivo</Button>
       </div>
     </Sheet>
+  );
+}
+
+/** Patti per i traguardi delle sedute totali (25, 50, 100…). */
+function SessionRewards({ ctx }: { ctx: GoalCtx }) {
+  const count = ctx.sessions.filter((x) => x.status === 'done').length;
+  const next = SESSION_MILESTONES.filter((m) => m > count).slice(0, 3);
+  const [vals, setVals] = useState<Record<string, string>>(ctx.settings.rewards ?? {});
+  if (!next.length) return null;
+  return (
+    <Card>
+      <div className="font-semibold">🎁 Patti con te stesso</div>
+      <p className="text-xs text-muted mb-2">Una ricompensa per i prossimi traguardi delle sedute. Ne hai fatte {count}.</p>
+      {next.map((m) => (
+        <Field key={m} label={`${m} sedute`}>
+          <input className={inputCls} value={vals[String(m)] ?? ''} placeholder="es. cena fuori" aria-label={`Ricompensa ${m} sedute`}
+            onChange={(e) => setVals({ ...vals, [String(m)]: e.target.value })}
+            onBlur={() => setSetting('rewards', Object.fromEntries(Object.entries(vals).filter(([, v]) => v.trim())))} />
+        </Field>
+      ))}
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, Chips, Confirm, Field, Header, NumInput, Sheet, Stepper, inputCls, toast } from '../components/ui';
 import PlateCalc from '../components/PlateCalc';
 import { setSetting } from '../lib/settings';
@@ -16,6 +16,7 @@ import { HEAVY_LEG_SETS, legWarning, logLegSets } from '../lib/football';
 
 export default function SessionPage() {
   const { id } = useParams();
+  const shoes = new URLSearchParams(useLocation().search).has('scarpe');
   const nav = useNavigate();
   const data = useData();
   const [s, setS] = useState<Session | null>(null);
@@ -109,6 +110,12 @@ export default function SessionPage() {
         }
       />
       <div className="p-4 space-y-3">
+        {shoes && isLive && s.kind === 'MIN' && (
+          <Card className="border-accent/50">
+            <div className="font-bold">👟 Scarpe messe. Il più è fatto.</div>
+            <div className="text-sm text-muted">Fai il primo esercizio, poi decidi. Anche se ti fermi qui, la seduta conta.</div>
+          </Card>
+        )}
         {!isLive && <p className="text-sm text-muted">{s.status === 'done' ? 'Stai modificando una seduta salvata' : 'Seduta registrata a posteriori'} · {fmtDateLong(s.date)}</p>}
         {isLive && elapsedMin !== null && elapsedMin >= 45 && (
           <Card className="border-accent/50">

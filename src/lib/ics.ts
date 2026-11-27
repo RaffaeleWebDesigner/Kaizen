@@ -44,3 +44,48 @@ export function buildIcs(days: number[], time: string, durationMin: number, aler
   ];
   return lines.join('\r\n') + '\r\n';
 }
+
+export interface IcsDay {
+  day: number; // 0 = lunedì
+  time: string; // HH:MM
+  cue?: string; // piano "se... allora"
+}
+
+const esc = (t: string) => t.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+
+/**
+ * Un evento ricorrente per ogni giorno, con la sua ora e il suo piano "se... allora" nel titolo dell'avviso.
+ * Orario "fluttuante": resta l'ora locale del telefono.
+ */
+export function buildIcsPlans(days: IcsDay[], durationMin: number, alertMin: number, from = todayISO()): string {
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Metodo Kaizen//Promemoria//IT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Metodo Kaizen'];
+  for (const p of [...days].sort((a, b) => a.day - b.day)) {
+    let first = from;
+    while (weekdayMon(first) !== p.day) first = addDays(first, 1);
+    const [h, m] = p.time.split(':').map(Number);
+    const start = new Date(2000, 0, 1, h, m);
+    const end = new Date(start.getTime() + durationMin * 60000);
+    const d = first.replace(/-/g, '');
+    const t = (x: Date) => `${pad(x.getHours())}${pad(x.getMinutes())}00`;
+    const endDay = end.getDate() !== start.getDate() ? addDays(first, 1).replace(/-/g, '') : d;
+    const cue = p.cue?.trim();
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:palestra-${BYDAY[p.day].toLowerCase()}@metodo-kaizen`,
+      `DTSTAMP:${stamp(new Date())}`,
+      `DTSTART:${d}T${t(start)}`,
+      `DTEND:${endDay}T${t(end)}`,
+      `RRULE:FREQ=WEEKLY;BYDAY=${BYDAY[p.day]}`,
+      'SUMMARY:Palestra – Metodo Kaizen',
+      `DESCRIPTION:${esc(cue ? `Il tuo piano: ${cue}. Nei giorni no basta mettersi le scarpe e fare la minima.` : 'Presentati. Nei giorni no c’è la seduta minima (10-15 min), e conta.')}`,
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      `DESCRIPTION:${esc(cue ? cue : 'Palestra tra poco')}`,
+      `TRIGGER:-PT${Math.max(0, alertMin)}M`,
+      'END:VALARM',
+      'END:VEVENT',
+    );
+  }
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n') + '\r\n';
+}

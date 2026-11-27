@@ -60,6 +60,15 @@ export interface AppSettings {
   letterShownOn: string | null;
   rankThresholds: Thresholds;
   notices: Notice[];
+  // costanza
+  dayPlans: DayPlan[]; // piano "se... allora" per ogni giorno di palestra
+  rewards: Record<string, string>; // ricompense per i traguardi delle sedute ("25" → testo)
+}
+
+export interface DayPlan {
+  day: number; // 0 = lunedì
+  time: string; // HH:MM
+  cue: string; // es. "appena torno dal lavoro, scendo in palestra"
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -95,6 +104,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   letterShownOn: null,
   rankThresholds: DEFAULT_THRESHOLDS,
   notices: [],
+  dayPlans: [],
+  rewards: {},
 };
 
 export async function getSettings(): Promise<AppSettings> {

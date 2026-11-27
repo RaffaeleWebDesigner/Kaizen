@@ -235,6 +235,37 @@ describe('sincronizzazione normale', () => {
   });
 });
 
+describe('strumenti per la costanza su due dispositivi', () => {
+  it('traguardi delle sedute, obiettivi in coda e piano: niente doppioni', async () => {
+    const remote = new MemoryRemote();
+    const phone = await phoneWithData();
+    const pc = await freshPC();
+    const a = new SyncEngine(phone, remote);
+    const b = new SyncEngine(pc, remote);
+    await a.firstSync('raffa');
+    await b.firstSync('raffa');
+    // l'iPhone crea un obiettivo in coda con ricompensa e il piano "se... allora"
+    const gid = await phone.goals.add({ kind: 'total', title: '100 sedute totali', target: 100, status: 'queued', createdAt: 1, createdOn: '2026-11-27', reward: 'cena fuori' });
+    await phone.settings.put({ key: 'dayPlans', value: [{ day: 0, time: '19:00', cue: 'appena torno dal lavoro' }] });
+    await a.sync();
+    await b.sync();
+    // entrambi i dispositivi calcolano lo stesso traguardo e attivano lo stesso obiettivo
+    const ms = { date: '2026-11-27', title: 'Traguardo: 25 sedute', category: 'palestra', source: 'goal', autoKey: 'sessions:25', createdAt: 1 } as const;
+    await phone.successes.add({ ...ms });
+    await pc.successes.add({ ...ms, createdAt: 2 });
+    await phone.goals.update(gid, { status: 'active' });
+    await pc.goals.update(gid, { status: 'active' });
+    await a.sync();
+    await b.sync();
+    await a.sync();
+    for (const db of [phone, pc]) {
+      expect((await db.successes.where('autoKey').equals('sessions:25').toArray())).toHaveLength(1);
+      expect(await db.goals.toArray()).toMatchObject([{ id: gid, status: 'active', reward: 'cena fuori' }]);
+      expect((await db.settings.get('dayPlans'))?.value).toEqual([{ day: 0, time: '19:00', cue: 'appena torno dal lavoro' }]);
+    }
+  });
+});
+
 describe('aggiornamento dalla v3', () => {
   it('apre il database v3 del telefono senza toccare i dati e senza mettere niente in coda', async () => {
     const Dexie = (await import('dexie')).default;

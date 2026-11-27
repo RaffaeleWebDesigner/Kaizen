@@ -5,7 +5,8 @@ import { fmtNum, totalLoad } from './units';
 import { weekStats } from './stats';
 import { computeRanks, levelName } from './rank';
 import { getSettings, setSetting, type AppSettings } from './settings';
-import { goalProgress, loadGoalCtx } from './goals';
+import { activateGoal, goalProgress, loadGoalCtx, MAX_ACTIVE_GOALS } from './goals';
+import { SESSION_MILESTONES } from './consistency';
 
 // ---------- verifica dei successi ----------
 
@@ -213,10 +214,26 @@ async function doSync(): Promise<void> {
       });
     }
   }
+  // traguardi delle sedute totali (stessa autoKey = stesso id su ogni dispositivo)
+  for (const ms of SESSION_MILESTONES) {
+    const s = chrono[ms - 1];
+    if (!s) break;
+    const reward = settings.rewards?.[String(ms)];
+    const added = await addAuto({
+      date: s.date, title: `Traguardo: ${ms} sedute`, description: reward ? `🎁 Ricompensa sbloccata: ${reward}` : 'Una seduta alla volta.',
+      category: 'palestra', source: 'goal', autoKey: `sessions:${ms}`,
+    });
+    if (added && s.date >= addDays(today, -2)) {
+      notices.push({ id: `s-${ms}`, kind: 'goal', level: 0, title: `${ms} sedute`, text: reward ? `${ms} volte ti sei presentato. Ricompensa sbloccata: ${reward}.` : `${ms} volte ti sei presentato. Una alla volta.` });
+    }
+  }
+
   // obiettivi: tappe e traguardi nel barattolo
   const goals = await db.goals.where('status').equals('active').toArray();
-  if (goals.length) {
+  const queued = (await db.goals.where('status').equals('queued').toArray()).sort((a, b) => a.createdAt - b.createdAt);
+  if (goals.length || queued.length) {
     const ctx = await loadGoalCtx(today);
+    let activeCount = goals.length;
     for (const g of goals) {
       const p = goalProgress(g, ctx);
       for (const m of p.milestones.filter((x) => x.reached)) {
@@ -224,13 +241,22 @@ async function doSync(): Promise<void> {
       }
       if (p.done) {
         await db.goals.update(g.id!, { status: 'done', doneOn: today });
-        await addAuto({ date: today, title: `Obiettivo raggiunto: ${g.title}`, description: 'Un passo piccolo alla volta.', category: 'palestra', source: 'goal', autoKey: `goal:${g.id}:done`, claim: { type: 'obiettivo', goalId: g.id } });
-        notices.push({ id: `g-${g.id}`, kind: 'goal', level: 0, title: 'Obiettivo raggiunto', text: `${g.title}. Arrivato a tappe piccole, senza salti. Scegli il prossimo quando vuoi.` });
+        activeCount--;
+        await addAuto({ date: today, title: `Obiettivo raggiunto: ${g.title}`, description: g.reward ? `🎁 Ricompensa sbloccata: ${g.reward}` : 'Un passo piccolo alla volta.', category: 'palestra', source: 'goal', autoKey: `goal:${g.id}:done`, claim: { type: 'obiettivo', goalId: g.id } });
+        notices.push({ id: `g-${g.id}`, kind: 'goal', level: 0, title: 'Obiettivo raggiunto', text: `${g.title}. Arrivato a tappe piccole, senza salti.${g.reward ? ` Ricompensa sbloccata: ${g.reward}.` : ''}` });
       }
+    }
+    // si libera un posto: parte il primo obiettivo in coda
+    for (const q of queued) {
+      if (activeCount >= MAX_ACTIVE_GOALS) break;
+      await db.goals.update(q.id!, activateGoal(q, ctx));
+      activeCount++;
     }
   }
 
-  if (notices.length !== settings.notices.length) await setSetting('notices', notices);
+  // stessa notizia generata su due dispositivi: una sola volta
+  const uniq = notices.filter((n, i) => notices.findIndex((x) => x.id === n.id) === i);
+  if (uniq.length !== settings.notices.length || uniq.some((n, i) => settings.notices[i]?.id !== n.id)) await setSetting('notices', uniq);
 }
 
 // ---------- stallo e dolore (punto del mese e riepilogo coach) ----------
