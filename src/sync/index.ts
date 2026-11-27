@@ -50,9 +50,10 @@ export function friendlyError(e: unknown): string {
   if (/already registered|already exists/i.test(m)) return 'Esiste già un account con questa email: usa Accedi.';
   if (/Password should be|at least 6/i.test(m)) return 'La password deve avere almeno 6 caratteri.';
   if (/push_rows|kaizen_rows|schema cache|does not exist/i.test(m)) return 'Il database su Supabase non è ancora pronto: manca lo script SQL.';
-  if (/Failed to fetch|NetworkError|Load failed|network|fetch/i.test(m)) return 'Cloud non raggiungibile: sei offline, oppure il progetto Supabase è in pausa.';
   if (/rate limit/i.test(m)) return 'Troppi tentativi: riprova tra qualche minuto.';
-  return m;
+  const name = e instanceof Error && e.name && e.name !== 'Error' ? e.name + ': ' : '';
+  if (/^(Failed to fetch|NetworkError|Load failed)/i.test(m)) return `Cloud non raggiungibile: sei offline, oppure il progetto Supabase è in pausa. (Dettaglio: ${name}${m})`;
+  return `Errore: ${name}${m}`;
 }
 
 async function refreshInfo() {
