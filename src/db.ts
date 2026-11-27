@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { syncMiddleware, type OutboxEntry } from './sync/middleware';
 
 export type MuscleGroup = 'gambe' | 'spinta' | 'tirata' | 'core';
 export type Unit = 'kg' | 'lb';
@@ -249,6 +250,11 @@ export interface RankSnap {
   bw?: number | null; // peso corporeo usato
 }
 
+export interface SyncStateRow {
+  key: string;
+  value: unknown;
+}
+
 export interface Setting {
   key: string;
   value: unknown;
@@ -269,9 +275,11 @@ export class KaizenDB extends Dexie {
   successes!: Table<Success, number>;
   rankHistory!: Table<RankSnap, number>;
   goals!: Table<Goal, number>;
+  outbox!: Table<OutboxEntry, string>;
+  syncState!: Table<SyncStateRow, string>;
 
-  constructor() {
-    super('kaizen');
+  constructor(name = 'kaizen') {
+    super(name);
     this.version(1).stores({
       settings: 'key',
       exercises: '++id, name, group',
@@ -295,6 +303,12 @@ export class KaizenDB extends Dexie {
     this.version(3).stores({
       goals: '++id, status, kind',
     });
+    // v4: sincronizzazione. Solo tabelle nuove (coda delle modifiche e stato), nessun dato toccato.
+    this.version(4).stores({
+      outbox: 'k, ts',
+      syncState: 'key',
+    });
+    this.use(syncMiddleware);
   }
 }
 

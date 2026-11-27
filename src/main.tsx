@@ -6,6 +6,7 @@ import './index.css';
 import { seedIfEmpty } from './seed';
 import { ensureMachines, ensureV2, ensureV3 } from './migrations';
 import { syncDerived } from './lib/derived';
+import { startSync } from './sync';
 
 registerSW({ immediate: true });
 
@@ -16,6 +17,7 @@ seedIfEmpty()
   .then(() => syncDerived())
   .catch((e) => console.error('Seed fallito', e))
   .finally(() => {
+    startSync();
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
         <App />

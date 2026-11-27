@@ -4,9 +4,12 @@ import { Button, Card, Confirm, Header, Sheet, toast } from '../components/ui';
 import { useSettings, setSetting } from '../lib/settings';
 import { coachSummary, copyText, download, downloadBackup, importAll, sessionsCSV } from '../lib/exportData';
 import { todayISO } from '../lib/dates';
+import { useSync } from '../sync';
 
 export default function DataPage() {
   const settings = useSettings();
+  const sync = useSync();
+  const synced = sync.phase === 'ok' || sync.phase === 'syncing' || sync.phase === 'error';
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export default function DataPage() {
         <Card className={old ? 'border-minima/50' : ''}>
           <h2 className="font-bold mb-1">Backup</h2>
           <p className="text-sm text-muted mb-3">
-            I dati stanno solo su questo dispositivo. Ultimo backup: <b className={old ? 'text-minima' : 'text-ink'}>{last ? last.toLocaleDateString('it-IT') : 'mai'}</b>.
+            {synced ? 'I dati sono anche nel cloud (foto escluse), ma il backup resta la tua copia personale.' : 'I dati stanno solo su questo dispositivo.'} Ultimo backup: <b className={old ? 'text-minima' : 'text-ink'}>{last ? last.toLocaleDateString('it-IT') : 'mai'}</b>.
             {old && ' Fanne uno adesso e salvalo su Drive, iCloud o mandalo a te stesso.'}
           </p>
           <div className="grid gap-2">

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, Header } from '../components/ui';
 
 const ITEMS = [
+  { to: '/account', icon: '🔄', title: 'Account e sincronizzazione', text: 'Stessi progressi su iPhone e PC' },
   { to: '/modelli', icon: '📋', title: 'Modelli di seduta', text: 'A, B, C e Minima: esercizi, serie, fasce e carichi' },
   { to: '/foto', icon: '📷', title: 'Foto dei progressi', text: 'Frontale e laterale ogni 4 settimane, confronto prima/dopo' },
   { to: '/obiettivi', icon: '🎯', title: 'Obiettivi', text: 'Traguardi a tappe piccole, senza scadenze' },

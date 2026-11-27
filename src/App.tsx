@@ -28,6 +28,7 @@ import SuccessesPage from './pages/SuccessesPage';
 import GoalsPage from './pages/GoalsPage';
 import RankPage from './pages/RankPage';
 import NoticeHost from './components/NoticeHost';
+import AccountPage from './pages/AccountPage';
 
 const TABS = [
   { to: '/', label: 'Oggi', icon: '●' },
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/progressi" element={<ProgressPage />} />
           <Route path="/corpo" element={<BodyPage />} />
           <Route path="/altro" element={<MorePage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/modelli" element={<TemplatesPage />} />
           <Route path="/modelli/:code" element={<TemplateEdit />} />
           <Route path="/esercizi/:id" element={<ExerciseEdit />} />
