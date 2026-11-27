@@ -173,7 +173,9 @@ export async function ensureV3(): Promise<void> {
     }
     const letter = (await db.settings.get('letterOriginal'))?.value as { at: number } | undefined;
     if (letter?.at) await addLetterSuccess(letter.at);
-    await addOnce({ date: todayISO(), title: 'Mi sono costruito un’app tutta mia per allenarmi', category: 'vita', source: 'manual', autoKey: 'starter:app' });
+    if (!(await db.settings.get('freshAccount'))?.value) {
+      await addOnce({ date: todayISO(), title: 'Mi sono costruito un’app tutta mia per allenarmi', category: 'vita', source: 'manual', autoKey: 'starter:app' });
+    }
 
     await db.settings.put({ key: 'v3done', value: true });
   });

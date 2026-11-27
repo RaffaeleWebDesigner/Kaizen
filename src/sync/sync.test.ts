@@ -87,17 +87,42 @@ describe('prima sincronizzazione', () => {
     expect(await pc.outbox.count()).toBe(0);
   });
 
-  it('PC collegato per primo: poi l’iPhone con i dati veri sostituisce quelli iniziali', async () => {
+  it('account nuovo (cloud vuoto) su un dispositivo con i soli dati iniziali: chiede un archivio vuoto, non carica niente', async () => {
     const remote = new MemoryRemote();
     const pc = await freshPC();
-    expect((await new SyncEngine(pc, remote).firstSync('raffa')).kind).toBe('upload');
-    const phone = await phoneWithData();
-    const before = await dump(phone);
-    const plan = await new SyncEngine(phone, remote).firstSync('raffa');
-    expect(plan).toEqual({ kind: 'upload', replaceCloud: true });
-    expect(await dump(phone)).toEqual(before);
-    await new SyncEngine(pc, remote).sync();
-    expect(await dump(pc)).toEqual(before);
+    expect((await new SyncEngine(pc, remote).firstSync('amico')).kind).toBe('fresh');
+    expect(remote.rows.size).toBe(0);
+  });
+
+  it('archivio vuoto di un account nuovo: carica solo il catalogo, nessuna seduta di altri', async () => {
+    const remote = new MemoryRemote();
+    const db = device();
+    await db.settings.bulkPut([{ key: 'seeded', value: true }, { key: 'freshAccount', value: true }]);
+    await db.exercises.add({ name: 'Panca' } as any);
+    expect((await new SyncEngine(db, remote).firstSync('amico')).kind).toBe('upload');
+    expect(remote.live().filter((r) => r.tbl === 'sessions')).toHaveLength(0);
+    expect(remote.live().filter((r) => r.tbl === 'exercises')).toHaveLength(1);
+  });
+
+  it('ricomincia da zero: cancella i dati dell’account qui, nel cloud e sull’altro dispositivo', async () => {
+    const remote = new MemoryRemote();
+    const a = await phoneWithData();
+    const ea = new SyncEngine(a, remote);
+    await ea.firstSync('prova');
+    const b = await freshPC();
+    const eb = new SyncEngine(b, remote);
+    await eb.firstSync('prova');
+    expect(await b.sessions.count()).toBe(4);
+    await ea.wipeLocal();
+    await a.settings.bulkPut([{ key: 'seeded', value: true }, { key: 'freshAccount', value: true }]);
+    await a.exercises.add({ name: 'Panca' } as any);
+    await ea.firstSync('prova', undefined, 'replaceCloud');
+    await eb.sync();
+    expect(await a.sessions.count()).toBe(0);
+    expect(await b.sessions.count()).toBe(0);
+    expect(await b.measurements.count()).toBe(0);
+    expect(await a.photos.count()).toBe(1);
+    expect(remote.live().filter((r) => r.tbl === 'sessions')).toHaveLength(0);
   });
 
   it('dati veri su entrambi: chiede, e senza risposta non tocca niente', async () => {

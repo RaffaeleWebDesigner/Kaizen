@@ -17,6 +17,7 @@ const PUSH_CHUNK = 300;
 const OVERLAP_MS = 60_000;
 
 export type FirstSyncPlan =
+  | { kind: 'fresh' } // account nuovo (cloud vuoto) e qui solo dati iniziali: serve un archivio vuoto per l'account
   | { kind: 'upload'; replaceCloud: boolean } // il cloud è vuoto (o ha solo i dati iniziali): si carica questo dispositivo
   | { kind: 'download' } // questo dispositivo ha solo i dati iniziali: prende il cloud
   | { kind: 'ask'; reason: 'both' | 'otherAccount'; local: DataSummary; cloud: DataSummary };
@@ -102,17 +103,20 @@ export class SyncEngine {
     const cloudEmpty = cloudRows.length === 0;
     const localOwn = hasOwnData(local);
     const cloudOwn = hasOwnData(cloud);
-    if (cloudEmpty) return { plan: { kind: 'upload', replaceCloud: false }, cloudRows };
+    const freshLocal = !!(await this.db.settings.get('freshAccount'))?.value;
+    if (cloudEmpty) return { plan: !localOwn && !freshLocal ? { kind: 'fresh' } : { kind: 'upload', replaceCloud: false }, cloudRows };
     if (!localOwn) return { plan: { kind: 'download' }, cloudRows };
     if (!cloudOwn) return { plan: { kind: 'upload', replaceCloud: true }, cloudRows };
     return { plan: { kind: 'ask', reason: 'both', local: await this.localSummary(), cloud: cloudSummary() }, cloudRows };
   }
 
   /** Esegue la prima sincronizzazione. `choice` serve solo quando il piano è 'ask'. */
-  async firstSync(userId: string, choice?: Choice): Promise<FirstSyncPlan> {
+  async firstSync(userId: string, choice?: Choice, force?: 'replaceCloud'): Promise<FirstSyncPlan> {
     const { plan, cloudRows } = await this.planFirstSync(userId);
     let mode: 'upload' | 'replaceCloud' | 'download';
-    if (plan.kind === 'ask') {
+    if (force) mode = force;
+    else if (plan.kind === 'fresh') return plan;
+    else if (plan.kind === 'ask') {
       if (!choice) return plan;
       mode = choice === 'cloud' ? 'download' : 'replaceCloud';
     } else if (plan.kind === 'download') mode = 'download';
@@ -143,6 +147,11 @@ export class SyncEngine {
     await this.pull();
     await this.setState({ lastSyncAt: Date.now() });
     return plan;
+  }
+
+  /** Svuota i dati sincronizzati di questo dispositivo, senza toccare il cloud (le foto restano). */
+  async wipeLocal() {
+    await this.replaceLocal([]);
   }
 
   /** Sostituisce i dati di questo dispositivo con quelli del cloud (le foto restano). */

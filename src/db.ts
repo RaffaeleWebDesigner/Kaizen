@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import { syncMiddleware, type OutboxEntry } from './sync/middleware';
+import { activeDbName } from './sync/activeDb';
 
 export type MuscleGroup = 'gambe' | 'spinta' | 'tirata' | 'core';
 export type Unit = 'kg' | 'lb';
@@ -312,7 +313,8 @@ export class KaizenDB extends Dexie {
   }
 }
 
-export const db = new KaizenDB();
+/** Archivio dell'account attivo su questo dispositivo (vedi src/sync/activeDb.ts). */
+export const db = new KaizenDB(activeDbName());
 
 export const TABLES = [
   'settings',

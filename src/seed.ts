@@ -1,6 +1,8 @@
 import { db, type Exercise, type Template, type TemplateRow } from './db';
 import { makeLog, rowFor } from './lib/sessionUtils';
 import { DEFAULT_SETTINGS } from './lib/settings';
+import { todayISO } from './lib/dates';
+import { isFreshDb } from './sync/activeDb';
 
 type ExSeed = Omit<Exercise, 'id' | 'substituteIds'> & { key: string; subs: string[] };
 
@@ -60,7 +62,11 @@ const TEMPLATES: { code: Template['code']; name: string; rows: RowSeed[] }[] = [
   ] },
 ];
 
-export async function seedIfEmpty(): Promise<void> {
+/**
+ * Primo avvio di un archivio. `fresh`: archivio di un account nuovo, che parte da zero
+ * (solo catalogo di esercizi, modelli e impostazioni predefinite).
+ */
+export async function seedIfEmpty(fresh = isFreshDb()): Promise<void> {
   const seeded = await db.settings.get('seeded');
   if (seeded) return;
   await db.transaction('rw', [db.settings, db.exercises, db.templates, db.sessions, db.dayMarks, db.matches, db.measurements], async () => {
@@ -80,45 +86,48 @@ export async function seedIfEmpty(): Promise<void> {
       await db.templates.add({ code: t.code, name: t.name, rows });
     }
 
-    // Seduta A del 16/11/2026
-    const tplA = TEMPLATES[0];
-    const done = (n: number, reps: number, load: number) => Array.from({ length: n }, () => ({ reps, load, done: true }));
-    const setsByKey: Record<string, ReturnType<typeof done>> = {
-      goblet: done(2, 10, 12),
-      panca: done(3, 8, 30),
-      lat: done(3, 10, 45), // blocco base + 2 blocchi = 3 × 15 lb
-      shoulder: done(2, 10, 6),
-      plank: done(2, 30, 0),
-    };
-    const logs = tplA.rows.map(([k, sets, repMin, repMax, startLoad]) => {
-      const ex = exById.get(ids[k])!;
-      const log = makeLog(ex, { ...rowFor(ex, { sets, repMin, repMax, startLoad }) }, null, setsByKey[k]);
-      if (k === 'panca') log.notes = 'Dolore ai polsi, presa poco stabile';
-      if (k === 'lat') log.notes = 'Blocco base + 2 blocchi';
-      return log;
-    });
-    await db.sessions.add({
-      date: '2026-11-16', kind: 'A', status: 'done', startedAt: null, endedAt: new Date(2026, 10, 16, 20).getTime(),
-      durationMin: null, feeling: null, notes: 'Prima seduta del progetto.', exercises: logs,
-    });
+    // Dati personali di Raffa: solo sul suo primo archivio, mai nei nuovi account
+    if (!fresh) {
+      // Seduta A del 16/11/2026
+      const tplA = TEMPLATES[0];
+      const done = (n: number, reps: number, load: number) => Array.from({ length: n }, () => ({ reps, load, done: true }));
+      const setsByKey: Record<string, ReturnType<typeof done>> = {
+        goblet: done(2, 10, 12),
+        panca: done(3, 8, 30),
+        lat: done(3, 10, 45), // blocco base + 2 blocchi = 3 × 15 lb
+        shoulder: done(2, 10, 6),
+        plank: done(2, 30, 0),
+      };
+      const logs = tplA.rows.map(([k, sets, repMin, repMax, startLoad]) => {
+        const ex = exById.get(ids[k])!;
+        const log = makeLog(ex, { ...rowFor(ex, { sets, repMin, repMax, startLoad }) }, null, setsByKey[k]);
+        if (k === 'panca') log.notes = 'Dolore ai polsi, presa poco stabile';
+        if (k === 'lat') log.notes = 'Blocco base + 2 blocchi';
+        return log;
+      });
+      await db.sessions.add({
+        date: '2026-11-16', kind: 'A', status: 'done', startedAt: null, endedAt: new Date(2026, 10, 16, 20).getTime(),
+        durationMin: null, feeling: null, notes: 'Prima seduta del progetto.', exercises: logs,
+      });
 
-    await db.dayMarks.bulkAdd([
-      { date: '2026-11-19', type: 'skipped', plannedKind: 'B', reason: 'Videogioco' },
-      { date: '2026-11-22', type: 'skipped', plannedKind: 'C', reason: 'Poco sonno dopo una serata' },
-      { date: '2026-11-23', type: 'sick', reason: 'Malattia' },
-    ]);
+      await db.dayMarks.bulkAdd([
+        { date: '2026-11-19', type: 'skipped', plannedKind: 'B', reason: 'Videogioco' },
+        { date: '2026-11-22', type: 'skipped', plannedKind: 'C', reason: 'Poco sonno dopo una serata' },
+        { date: '2026-11-23', type: 'sick', reason: 'Malattia' },
+      ]);
 
-    await db.matches.bulkAdd([
-      { date: '2026-11-20', time: '21:00', venue: null },
-      { date: '2026-11-27', time: '21:00', venue: null },
-    ]);
+      await db.matches.bulkAdd([
+        { date: '2026-11-20', time: '21:00', venue: null },
+        { date: '2026-11-27', time: '21:00', venue: null },
+      ]);
 
-    await db.measurements.add({
-      date: '2026-11-16', weight: 59.1, bmi: 20.0, fatPct: 9.5, leanMass: 53.5, subcutFatPct: 8.5, visceralFat: 3.3,
-      waterPct: 65.3, skeletalMusclePct: 58.4, muscleMass: 50.8, boneMass: 2.7, proteinPct: 20.6, bmr: 1524,
-    });
+      await db.measurements.add({
+        date: '2026-11-16', weight: 59.1, bmi: 20.0, fatPct: 9.5, leanMass: 53.5, subcutFatPct: 8.5, visceralFat: 3.3,
+        waterPct: 65.3, skeletalMusclePct: 58.4, muscleMass: 50.8, boneMass: 2.7, proteinPct: 20.6, bmr: 1524,
+      });
+    }
 
-    const s = { ...DEFAULT_SETTINGS, createdAt: Date.now() };
+    const s = { ...DEFAULT_SETTINGS, createdAt: Date.now(), ...(fresh ? { startDate: todayISO(), freshAccount: true } : {}) };
     await db.settings.bulkPut(Object.entries(s).map(([key, value]) => ({ key, value })));
     await db.settings.put({ key: 'seeded', value: true });
   });

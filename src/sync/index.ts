@@ -4,6 +4,7 @@ import { db } from '../db';
 import { SyncEngine, type Choice, type FirstSyncPlan } from './engine';
 import { onLocalChange } from './middleware';
 import { SUPABASE_KEY, SUPABASE_URL } from './config';
+import { activeDbName, dbForUser, dbNameForNewUser, isFreshDb, registerDb, switchDb } from './activeDb';
 
 export type SyncPhase = 'loading' | 'signedOut' | 'notLinked' | 'ask' | 'syncing' | 'ok' | 'error';
 
@@ -72,17 +73,28 @@ async function evaluate() {
   const user = await currentUser();
   await refreshInfo();
   if (!user) return set({ phase: 'signedOut', email: null, ask: null });
-  const linked = (await db.syncState.get('userId'))?.value === user.id;
   set({ email: user.email ?? null });
-  if (!linked) return set({ phase: status.ask ? 'ask' : 'notLinked' });
-  await syncNow();
+  const linkedTo = (await db.syncState.get('userId'))?.value as string | undefined;
+  if (linkedTo === user.id) {
+    registerDb(user.id);
+    return syncNow();
+  }
+  const known = dbForUser(user.id);
+  if (linkedTo || (known && known !== activeDbName())) {
+    // questo archivio è di un altro account: passo all'archivio di questo account (nuovo e vuoto se non c'è)
+    return openDbFor(user.id);
+  }
+  if (isFreshDb()) return link(); // archivio appena creato per questo account: collego subito
+  set({ phase: status.ask ? 'ask' : 'notLinked' });
 }
 
 // ---------- sincronizzazione ----------
 let running: Promise<void> | null = null;
 let again = false;
+let exclusive = false; // primo collegamento o azzeramento in corso: niente sincronizzazioni normali in mezzo
 
 export function syncNow(): Promise<void> {
+  if (exclusive) return Promise.resolve();
   if (running) {
     again = true;
     return running;
@@ -113,6 +125,13 @@ export function syncNow(): Promise<void> {
   return running;
 }
 
+function openDbFor(userId: string) {
+  const known = dbForUser(userId);
+  switchDb(known ?? dbNameForNewUser(userId), !known);
+  set({ phase: 'loading' });
+  location.reload();
+}
+
 /** Copia interna di tutti i dati (foto escluse), da ripristinare se qualcosa va storto. */
 async function internalBackup() {
   const { exportAll } = await import('../lib/exportData');
@@ -131,20 +150,60 @@ export async function link(choice?: Choice): Promise<void> {
   const user = await currentUser();
   if (!user) return set({ phase: 'signedOut' });
   set({ phase: 'syncing', error: null });
+  await running;
+  exclusive = true;
   try {
     await internalBackup();
     const plan = await (await eng()).firstSync(user.id, choice);
+    if (plan.kind === 'fresh') return openDbFor(user.id); // account nuovo: parte da zero
     if (plan.kind === 'ask' && !choice) {
       await refreshInfo();
       return set({ phase: 'ask', ask: plan });
     }
     set({ ask: null });
+    registerDb(user.id);
     const { syncDerived } = await import('../lib/derived');
     await syncDerived();
+    exclusive = false;
     await syncNow();
   } catch (e) {
     await refreshInfo();
     set({ phase: 'error', error: friendlyError(e) });
+  } finally {
+    exclusive = false;
+  }
+}
+
+/**
+ * Ricomincia da zero: cancella tutti i dati di questo account (qui, nel cloud e quindi sugli altri dispositivi),
+ * tenendo esercizi e modelli predefiniti. Le foto di questo dispositivo restano. Prima salva la copia interna.
+ */
+export async function resetAccount(): Promise<void> {
+  const user = await currentUser();
+  if (!user || (await db.syncState.get('userId'))?.value !== user.id) throw new Error('Accedi e collega prima il dispositivo.');
+  set({ phase: 'syncing', error: null });
+  await running;
+  exclusive = true;
+  try {
+    await internalBackup();
+    const e = await eng();
+    await e.wipeLocal();
+    const { seedIfEmpty } = await import('../seed');
+    const { ensureV2, ensureV3, ensureMachines } = await import('../migrations');
+    await seedIfEmpty(true);
+    await ensureV2();
+    await ensureV3();
+    await ensureMachines();
+    await e.firstSync(user.id, undefined, 'replaceCloud');
+    const { syncDerived } = await import('../lib/derived');
+    await syncDerived();
+    exclusive = false;
+    await syncNow();
+  } catch (x) {
+    await refreshInfo();
+    set({ phase: 'error', error: friendlyError(x) });
+  } finally {
+    exclusive = false;
   }
 }
 

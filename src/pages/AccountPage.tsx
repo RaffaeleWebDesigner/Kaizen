@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Button, Card, Confirm, Header, toast } from '../components/ui';
+import { Button, Card, Confirm, Header, Sheet, toast } from '../components/ui';
 import { downloadBackup } from '../lib/exportData';
 import { fmtDate } from '../lib/dates';
-import { link, restoreInternalBackup, signIn, signOut, signUp, syncNow, useSync } from '../sync';
+import { link, resetAccount, restoreInternalBackup, signIn, signOut, signUp, syncNow, useSync } from '../sync';
 
 const input = 'w-full min-h-[48px] bg-surface2 border border-line rounded-xl px-3 text-base';
 
@@ -68,6 +68,8 @@ export default function AccountPage() {
   const [confirmOut, setConfirmOut] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [choice, setChoice] = useState<'cloud' | 'device' | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetText, setResetText] = useState('');
 
   // Il download del file resta separato dal collegamento: su iPhone apre un'anteprima
   // che interrompe la pagina, quindi non va mai messo in fila prima di link().
@@ -93,7 +95,7 @@ export default function AccountPage() {
             <p className="text-sm text-muted mb-1">Account: <b className="text-ink">{s.email}</b></p>
             <ul className="text-sm text-muted list-disc pl-5 my-2 space-y-1">
               <li>Se il cloud è vuoto, i dati di questo dispositivo vengono caricati. Non si cancella niente.</li>
-              <li>Se questo dispositivo ha solo i dati iniziali dell’app, prende quelli del cloud.</li>
+              <li>Se questo dispositivo ha solo i dati iniziali dell’app, prende quelli del cloud. Un account nuovo parte da zero.</li>
               <li>Se ci sono dati veri da entrambe le parti, ti chiedo quali tenere.</li>
               <li>Le foto restano solo su questo dispositivo.</li>
             </ul>
@@ -151,6 +153,14 @@ export default function AccountPage() {
           </Card>
         )}
 
+        {(s.phase === 'ok' || s.phase === 'error') && (
+          <Card>
+            <h2 className="font-bold mb-1">Ricomincia da zero</h2>
+            <p className="text-sm text-muted mb-3">Cancella sedute, misure e tutto il resto di questo account, qui e su tutti i dispositivi collegati. Restano esercizi e modelli predefiniti e le foto di questo dispositivo.</p>
+            <Button variant="danger" className="w-full" onClick={() => { setResetText(''); setResetOpen(true); }}>Ricomincia da zero…</Button>
+          </Card>
+        )}
+
         {s.email && (
           <Card>
             <Button className="w-full" onClick={() => setConfirmOut(true)}>Esci dall’account</Button>
@@ -166,6 +176,16 @@ export default function AccountPage() {
           </Card>
         )}
       </div>
+
+      <Sheet open={resetOpen} onClose={() => setResetOpen(false)} title="Ricominciare da zero?">
+        <p className="text-muted mb-3">Account <b className="text-ink">{s.email}</b>: tutti i dati di questo account vengono cancellati qui, nel cloud e sugli altri dispositivi collegati. Su questo dispositivo resta una copia di sicurezza interna.</p>
+        <p className="text-sm text-muted mb-2">Per confermare scrivi <b className="text-ink">AZZERA</b>.</p>
+        <input className={input + ' mb-3'} value={resetText} onChange={(e) => setResetText(e.target.value)} autoCapitalize="characters" />
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={() => setResetOpen(false)}>Annulla</Button>
+          <Button variant="danger" disabled={resetText.trim().toUpperCase() !== 'AZZERA'} onClick={async () => { setResetOpen(false); await resetAccount(); toast('Account azzerato'); }}>Azzera</Button>
+        </div>
+      </Sheet>
 
       <Confirm open={confirmOut} onClose={() => setConfirmOut(false)} title="Uscire dall’account?" confirmLabel="Esci"
         text="La sincronizzazione si ferma. I dati restano su questo dispositivo e nel cloud." onConfirm={() => signOut()} />
