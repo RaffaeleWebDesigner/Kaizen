@@ -69,13 +69,14 @@ export default function AccountPage() {
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [choice, setChoice] = useState<'cloud' | 'device' | null>(null);
 
-  const linkWithBackup = async () => {
+  // Il download del file resta separato dal collegamento: su iPhone apre un'anteprima
+  // che interrompe la pagina, quindi non va mai messo in fila prima di link().
+  const saveFile = async () => {
     try {
       await downloadBackup();
     } catch {
-      /* se il download non parte, resta comunque la copia interna */
+      toast('Backup non scaricato: riprova da Dati e backup');
     }
-    await link();
   };
 
   return (
@@ -96,10 +97,10 @@ export default function AccountPage() {
               <li>Se ci sono dati veri da entrambe le parti, ti chiedo quali tenere.</li>
               <li>Le foto restano solo su questo dispositivo.</li>
             </ul>
-            <p className="text-sm text-muted mb-3">Prima scarica un backup: è la tua rete di sicurezza. L’app ne tiene anche una copia interna.</p>
+            <p className="text-sm text-muted mb-3">Prima di collegare l’app salva da sola una copia di sicurezza interna, che puoi ripristinare da qui. Se vuoi anche il file, scaricalo prima e poi torna qui.</p>
             <div className="grid gap-2">
-              <Button big variant="primary" onClick={linkWithBackup}>Scarica il backup e collega</Button>
-              <Button variant="ghost" onClick={() => link()}>Collega senza scaricare il backup</Button>
+              <Button big variant="primary" onClick={() => link()}>Collega questo dispositivo</Button>
+              <Button variant="ghost" onClick={saveFile}>Scarica prima il file di backup</Button>
             </div>
           </Card>
         )}
@@ -173,15 +174,11 @@ export default function AccountPage() {
         onConfirm={async () => { try { await restoreInternalBackup(); toast('Copia ripristinata'); } catch (e) { toast((e as Error).message); } }} />
       <Confirm open={!!choice} onClose={() => setChoice(null)} danger
         title={choice === 'cloud' ? 'Usare i dati del cloud?' : 'Usare i dati di questo dispositivo?'}
-        confirmLabel="Scarica il backup e continua"
+        confirmLabel="Continua"
         text={choice === 'cloud'
-          ? 'I dati di questo dispositivo vengono sostituiti da quelli del cloud (le foto restano). Prima scarico un backup.'
-          : 'I dati nel cloud vengono sostituiti da quelli di questo dispositivo, anche sugli altri dispositivi collegati. Prima scarico un backup.'}
-        onConfirm={async () => {
-          const c = choice!;
-          try { await downloadBackup(); } catch { /* resta la copia interna */ }
-          await link(c);
-        }} />
+          ? 'I dati di questo dispositivo vengono sostituiti da quelli del cloud (le foto restano). La copia di sicurezza interna viene salvata prima.'
+          : 'I dati nel cloud vengono sostituiti da quelli di questo dispositivo, anche sugli altri dispositivi collegati. La copia di sicurezza interna viene salvata prima.'}
+        onConfirm={() => { void link(choice!); }} />
     </div>
   );
 }
